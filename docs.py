@@ -219,6 +219,26 @@ def check_links(repository: str, markdown: str, repo_root: Path) -> tuple[DocIss
     return tuple(issues)
 
 
+def check_icon(repository: str, markdown: str) -> tuple[DocIssue, ...]:
+    """Whether the README actually shows the approved mark.
+
+    Reported rather than asserted. Whether another repository has adopted the
+    icon is a fact about that repository's `main`, not a property this package
+    can hold true, so a repository that has not adopted it yet must show up as
+    one line of drift instead of a failing test here.
+    """
+    if ".github/icon.svg" in markdown:
+        return ()
+    return (
+        DocIssue(
+            repository,
+            "missing_icon",
+            "the README does not show .github/icon.svg",
+            "run the branding rollout and commit the README change",
+        ),
+    )
+
+
 def check_readme(
     repository: str,
     repo_class: RepoClass,
@@ -234,6 +254,7 @@ def check_readme(
         check_structure(repository, repo_class, markdown)
         + check_install_commands(repository, repo_class, markdown)
         + check_links(repository, markdown, repo_root)
+        + check_icon(repository, markdown)
     )
     if ledger is not None:
         issues += check_versions(repository, markdown, ledger)

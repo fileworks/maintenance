@@ -274,7 +274,11 @@ def _write(
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(content, encoding="utf-8")
     return Asset(
-        path=str(path.relative_to(root)),
+        # POSIX separators, always. `str()` on a Path yields `\` on Windows, and
+        # every lookup against this manifest builds its key with `/`, so a native
+        # separator here made all 1,260 assets read as stale on Windows while
+        # nothing had actually changed.
+        path=path.relative_to(root).as_posix(),
         kind=kind,
         direction=direction,
         product=product,

@@ -12,6 +12,7 @@ from maintenance.identity.rollout import (
     Decision,
     ensure_readme_icon,
     has_rasterizer,
+    readme_badge,
     record,
     roll_out,
     targets,
@@ -192,18 +193,16 @@ class TestReadme:
         # not be announced twice by a screen reader.
         assert 'alt=""' in readme.read_text(encoding="utf-8")
 
-    def test_every_shipped_readme_shows_the_icon(self) -> None:
-        for repository in (
-            "media-sorter",
-            "immich-export",
-            "paperless-export",
-            "unpacksort",
-            "homebrew-tap",
-        ):
-            readme = Path(repository, "README.md")
-            if not readme.is_file():
-                continue
-            assert ".github/icon.svg" in readme.read_text(encoding="utf-8"), repository
+    def test_a_readme_without_the_icon_is_reported_as_drift(self) -> None:
+        # This replaced a loop that asserted every sibling repository's README
+        # already showed the icon. It passed only because the local working tree
+        # had uncommitted README edits; against `main` it failed, because the
+        # rollout has not landed there yet. Whether another repository adopted
+        # the icon is drift to report, not an invariant this suite can hold.
+        from maintenance.docs import check_icon
+
+        assert check_icon("demo", "# demo\n") != ()
+        assert check_icon("demo", readme_badge() + "\n\n# demo\n") == ()
 
 
 class TestBrandingPipeline:

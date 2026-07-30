@@ -183,6 +183,18 @@ class TestExportAndValidation:
         assert validate(exported) == []
         assert stale_against_sources(exported) == []
 
+    def test_manifest_paths_are_posix_on_every_platform(self, exported: Path) -> None:
+        # `stale_against_sources` builds its lookup keys with `/`. When the
+        # manifest recorded `str(Path)` instead, every key missed on Windows and
+        # all 1,260 assets reported stale while nothing had changed. Asserted as
+        # an invariant so it holds without needing a Windows runner to notice.
+        manifest = json.loads((exported / "manifest.json").read_text(encoding="utf-8"))
+        paths = [str(entry["path"]) for entry in manifest["assets"]]
+
+        assert paths
+        assert not [path for path in paths if "\\" in path]
+        assert all("/" in path for path in paths)
+
     def test_a_hand_edited_asset_is_caught(self, exported: Path) -> None:
         target = next(exported.rglob("*-32.svg"))
         target.write_text(target.read_text(encoding="utf-8") + "<!-- tweak -->", encoding="utf-8")
