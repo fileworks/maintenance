@@ -53,23 +53,34 @@ class TestRun:
         assert remote.checked is False
         assert "authenticated" in remote.note
 
-    def test_every_repository_runs_its_class_gates(self) -> None:
-        report = run(Path.cwd())
+    # These two replace assertions that the five real sibling repositories were
+    # currently in policy. That is not a property of this module: it is the thing
+    # the module exists to *report*, so a repository legitimately out of policy
+    # turned into a failing unit test here. Worse, they passed only because this
+    # workspace held unmerged work — the same files that made `security_policy`
+    # read as satisfied while media-sorter's `main` had no SECURITY.md at all.
+    #
+    # What is worth locking is that the audit reports a problem rather than
+    # skipping it, which a fixture can state exactly.
+    def test_a_repository_missing_its_files_is_reported_not_skipped(self, tmp_path: Path) -> None:
+        for name in ("media-sorter", "immich-export", "homebrew-tap"):
+            (tmp_path / name).mkdir()
 
-        gates = next(section for section in report.sections if section.name == "Quality gates")
-        assert gates.findings == []
+        report = run(tmp_path)
 
-    def test_repository_files_and_documentation_are_clean(self) -> None:
-        report = run(Path.cwd(), ledger_path=Path("maintenance/release-ledger.json"))
+        files = next(item for item in report.sections if item.name == "Repository files")
+        assert files.findings
+        assert any("README" in finding for finding in files.findings)
+        assert files.clean is False
 
-        for name in (
-            "Repository files",
-            "Documentation",
-            "Renovate",
-            "Package metadata",
-        ):
-            section = next(item for item in report.sections if item.name == name)
-            assert section.findings == [], f"{name}: {section.findings}"
+    def test_a_repository_absent_from_the_workspace_is_not_called_compliant(
+        self, tmp_path: Path
+    ) -> None:
+        # Nothing on disk must never read as a clean bill of health.
+        report = run(tmp_path)
+
+        gates = next(item for item in report.sections if item.name == "Quality gates")
+        assert gates.clean is False or gates.checked is False
 
     def test_the_markdown_names_what_was_not_checked(self) -> None:
         markdown = run(Path.cwd()).markdown()

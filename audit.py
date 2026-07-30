@@ -142,7 +142,16 @@ def run(
     Without them the remote section reports `unverifiable` rather than green:
     holding a credential is not the same as having looked.
     """
-    repos = [repo for repo in repositories(root) if repo.path.is_dir()]
+    governed = repositories(root)
+    repos = [repo for repo in governed if repo.path.is_dir()]
+    # A repository that is not checked out here was not examined, and every
+    # filesystem section below would otherwise report zero findings for it —
+    # which reads as compliant. Auditing an empty directory reported "Repository
+    # files: clean". The findings that *were* gathered stay listed; the section
+    # just stops claiming to cover what it never saw.
+    absent = [repo.name for repo in governed if not repo.path.is_dir()]
+    on_disk = not absent
+    absent_note = "not checked out here: " + ", ".join(absent) if absent else ""
     ledger = (
         ReleaseLedger.read(ledger_path) if ledger_path and ledger_path.is_file() else scaffold()
     )
@@ -167,6 +176,8 @@ def run(
                 for finding in drift.blocking
                 if finding.control_id not in setting_ids
             ],
+            checked=on_disk,
+            note=absent_note,
         )
     )
     report.sections.append(
@@ -188,13 +199,17 @@ def run(
         for repo in repos
         for issue in check_readme(repo.name, repo.repo_class, repo.path, ledger)
     ]
-    report.sections.append(AuditSection("Documentation", documentation))
+    report.sections.append(
+        AuditSection("Documentation", documentation, checked=on_disk, note=absent_note)
+    )
 
     gate_reports = [map_gates(repo) for repo in repos]
     report.sections.append(
         AuditSection(
             "Quality gates",
             [item.summary() for item in gate_reports if not item.aligned],
+            checked=on_disk,
+            note=absent_note,
         )
     )
     report.gate_matrix = alignment_matrix(gate_reports)
@@ -212,7 +227,7 @@ def run(
             continue
         if "packageRules" not in payload and "extends" not in payload:
             renovate.append(f"{repo.name}: renovate.json carries no policy")
-    report.sections.append(AuditSection("Renovate", renovate))
+    report.sections.append(AuditSection("Renovate", renovate, checked=on_disk, note=absent_note))
 
     metadata = [
         f"{repo.name}: {issue.field} — {issue.detail}"
@@ -222,7 +237,9 @@ def run(
             repo.name, (repo.path / "pyproject.toml").read_text(encoding="utf-8")
         )
     ]
-    report.sections.append(AuditSection("Package metadata", metadata))
+    report.sections.append(
+        AuditSection("Package metadata", metadata, checked=on_disk, note=absent_note)
+    )
 
     formulas: list[str] = []
     tap = root / "homebrew-tap"
@@ -237,7 +254,14 @@ def run(
                 f"{path.stem}: {issue.detail}"
                 for issue in check_hermetic(read.content, name=path.stem)
             ]
-    report.sections.append(AuditSection("Formulas", formulas))
+    report.sections.append(
+        AuditSection(
+            "Formulas",
+            formulas,
+            checked=(tap / "Formula").is_dir(),
+            note="the tap is not checked out here",
+        )
+    )
 
     identity_out = root / "maintenance" / "identity" / "out"
     if identity_out.is_dir():

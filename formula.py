@@ -318,9 +318,30 @@ def check_hermetic(source: str, *, name: str) -> list[HermeticIssue]:
                 )
             )
             break
-    if "virtualenv_install_with_resources" not in source:
+    if not _installs_only_declared_resources(source):
         issues.append(HermeticIssue(name, "does not install from its declared resources"))
     return issues
+
+
+def _installs_only_declared_resources(source: str) -> bool:
+    """Whether the install step can only use bytes the formula already declared.
+
+    Two idioms establish that, and requiring the first by name reported a false
+    positive against the second.
+
+    `virtualenv_install_with_resources` is the Homebrew shorthand. The longer form
+    stages every declared resource into a local wheelhouse and installs from it
+    with `PIP_NO_INDEX` set, which is if anything stricter: it forbids index
+    access outright and installs prebuilt wheels rather than building sdists.
+
+    Checked as a property rather than a spelling, because the guarantee is "a
+    fixed set of bytes", not "this method name".
+    """
+    if "virtualenv_install_with_resources" in source:
+        return True
+    stages_every_resource = re.search(r"resources\s*\.each\b", source) is not None
+    forbids_the_index = re.search(r"PIP_NO_INDEX[\"']?\]?\s*=\s*[\"']1[\"']", source) is not None
+    return stages_every_resource and forbids_the_index
 
 
 def resource_count(source: str) -> int:

@@ -21,6 +21,7 @@ from maintenance.drift import DriftReport, compliance_matrix
 from maintenance.ledger import ReleaseLedger, scaffold
 from maintenance.policy import Repository, evaluate, load_exceptions, repositories
 from maintenance.reconcile import gh_client, observe
+from maintenance.worktree import inspect as inspect_tree
 
 LEDGER_PATH = Path(__file__).parent / "release-ledger.json"
 EXCEPTIONS_PATH = Path(__file__).parent / "exceptions.json"
@@ -61,7 +62,8 @@ def build_report(root: Path, *, authenticated: bool = False) -> DriftReport:
         if repo.path.is_dir()
         for issue in check_readme(repo.name, repo.repo_class, repo.path, ledger)
     ]
-    return DriftReport(policy=policy, documentation=documentation)
+    trees = [state for repo in repos if (state := inspect_tree(repo.name, repo.path)) is not None]
+    return DriftReport(policy=policy, documentation=documentation, trees=trees)
 
 
 def main(argv: list[str] | None = None) -> int:

@@ -201,3 +201,53 @@ end
             source = path.read_text(encoding="utf-8")
             assert check_hermetic(source, name=path.stem) == [], path.name
             assert resource_count(source) > 0
+
+
+class TestHermeticIdioms:
+    """Both hermetic idioms must pass; neither spelling is the guarantee."""
+
+    def test_the_homebrew_shorthand_passes(self) -> None:
+        source = (
+            "class Demo < Formula\n"
+            "  include Language::Python::Virtualenv\n"
+            '  resource "click" do\n  end\n'
+            "  def install\n    virtualenv_install_with_resources\n  end\nend\n"
+        )
+
+        assert check_hermetic(source, name="demo") == []
+
+    def test_a_local_wheelhouse_with_the_index_forbidden_also_passes(self) -> None:
+        # The generated formulas use this form. Requiring the shorthand by name
+        # reported "does not install from its declared resources" against a
+        # formula that CI had already installed with no index access at all.
+        source = (
+            "class Demo < Formula\n"
+            "  include Language::Python::Virtualenv\n"
+            '  resource "click" do\n  end\n'
+            "  def install\n"
+            '    ENV["PIP_NO_INDEX"] = "1"\n'
+            "    resources.each do |resource|\n"
+            "      wheelhouse.install resource.cached_download\n"
+            "    end\n"
+            '    venv = virtualenv_create(libexec, "python3.12")\n'
+            '    venv.pip_install Dir[wheelhouse/"*.whl"], build_isolation: false\n'
+            "  end\nend\n"
+        )
+
+        assert check_hermetic(source, name="demo") == []
+
+    def test_staging_resources_without_forbidding_the_index_still_fails(self) -> None:
+        # Half the property is not the property: pip could still reach PyPI.
+        source = (
+            "class Demo < Formula\n"
+            "  include Language::Python::Virtualenv\n"
+            '  resource "click" do\n  end\n'
+            "  def install\n"
+            "    resources.each do |resource|\n"
+            "      wheelhouse.install resource.cached_download\n"
+            "    end\n"
+            "  end\nend\n"
+        )
+
+        details = [issue.detail for issue in check_hermetic(source, name="demo")]
+        assert "does not install from its declared resources" in details
