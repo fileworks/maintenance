@@ -27,6 +27,7 @@ from maintenance.policy import (
     SettingControl,
     setting_controls,
 )
+from maintenance.worktree import TreeState, unpublished
 
 
 @dataclass(frozen=True)
@@ -57,6 +58,9 @@ class DriftReport:
     policy: PolicyReport
     documentation: list[DocIssue] = field(default_factory=list)
     planned: list[PlannedChange] = field(default_factory=list)
+    #: Condition of the checkouts the file controls above were read from. Empty
+    #: when it was not inspected.
+    trees: list[TreeState] = field(default_factory=list)
     generated_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
 
     @property
@@ -94,6 +98,19 @@ class DriftReport:
             self.summary(),
             "",
         ]
+        # Immediately after the verdict, because it is what the verdict is worth.
+        drifted = unpublished(self.trees)
+        if drifted:
+            lines += [
+                "## What this verdict describes",
+                "",
+                "File controls read the checkout, not the published branch. These "
+                "checkouts hold work that has not landed, so a control satisfied "
+                "here is not necessarily satisfied on the branch anyone visits:",
+                "",
+            ]
+            lines += [f"- {state.describe()}" for state in drifted]
+            lines.append("")
         if self.blocking:
             lines += [
                 "## Out of policy",
