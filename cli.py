@@ -17,10 +17,10 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from maintenance.docs import check_readme
-from maintenance.drift import DriftReport, compliance_matrix
+from maintenance.drift import DriftReport, PlannedChange, compliance_matrix, plan_settings
 from maintenance.ledger import ReleaseLedger, scaffold
 from maintenance.policy import Repository, evaluate, load_exceptions, repositories
-from maintenance.reconcile import gh_client, observe
+from maintenance.reconcile import gh_client, observe, pull_request_checks
 from maintenance.worktree import inspect as inspect_tree
 
 LEDGER_PATH = Path(__file__).parent / "release-ledger.json"
@@ -50,11 +50,12 @@ def observe_settings(
 def build_report(root: Path, *, authenticated: bool = False) -> DriftReport:
     repos = repositories(root)
     ledger = ReleaseLedger.read(LEDGER_PATH) if LEDGER_PATH.is_file() else scaffold()
+    observations = observe_settings(repos) if authenticated else None
     policy = evaluate(
         repos,
         exceptions=load_exceptions(EXCEPTIONS_PATH),
         authenticated=authenticated,
-        observations=observe_settings(repos) if authenticated else None,
+        observations=observations,
     )
     documentation = [
         issue
@@ -63,7 +64,21 @@ def build_report(root: Path, *, authenticated: bool = False) -> DriftReport:
         for issue in check_readme(repo.name, repo.repo_class, repo.path, ledger)
     ]
     trees = [state for repo in repos if (state := inspect_tree(repo.name, repo.path)) is not None]
-    return DriftReport(policy=policy, documentation=documentation, trees=trees)
+
+    # Only with a session: the plan for branch protection is meaningless without
+    # the check names a pull request actually reports, and those have to be read.
+    planned: list[PlannedChange] = []
+    if authenticated and observations is not None:
+        client = gh_client()
+        for repo in repos:
+            planned += plan_settings(
+                repo,
+                dict(observations.get(repo.name, {})),
+                policy,
+                checks=pull_request_checks(repo.name, "fileworks", client),
+            )
+
+    return DriftReport(policy=policy, documentation=documentation, trees=trees, planned=planned)
 
 
 def main(argv: list[str] | None = None) -> int:

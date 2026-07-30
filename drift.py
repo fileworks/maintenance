@@ -13,13 +13,14 @@ is a decision made with the diff in hand.
 from __future__ import annotations
 
 import json
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from maintenance.docs import DocIssue
-from maintenance.gates import not_applicable, required_checks
+from maintenance.gates import not_applicable
 from maintenance.policy import (
     Finding,
     PolicyReport,
@@ -193,12 +194,19 @@ def plan_settings(
     report: PolicyReport,
     *,
     controls: tuple[SettingControl, ...] | None = None,
+    checks: Sequence[str] | None = None,
 ) -> list[PlannedChange]:
     """The dry-run: what a reconciliation would change, and what blocks it.
 
     A control whose prerequisite is not observed green is planned but *blocked*,
     so branch protection can never be applied before the checks it would require
     actually exist.
+
+    *checks* are the context names a pull request actually reports, from
+    `reconcile.pull_request_checks`. Branch protection is planned only when they
+    are known, because GitHub matches required checks by name and there is no
+    safe guess: requiring a name nothing reports makes the branch permanently
+    unmergeable, and only the next person to open a pull request finds out.
     """
     green = {
         finding.control_id
@@ -210,9 +218,27 @@ def plan_settings(
         if repository.repo_class not in control.applies_to:
             continue
         desired: Any = control.expected
+        blocked_extra: tuple[str, ...] = ()
+        current_value = observed.get(control.setting, "<unknown>")
+        if desired == "<non-empty>":
+            # Another predicate that is not a value. Writing it literally would
+            # have set every repository's description to the string
+            # "<non-empty>" — and they were already correct, so the plan was
+            # proposing to destroy five good descriptions.
+            if isinstance(current_value, str) and current_value.strip():
+                continue
+            desired = repository.description
         if desired == "<class gates>":
-            desired = list(required_checks(repository.repo_class))
-        current = observed.get(control.setting, "<unknown>")
+            # `required_checks` returns gate *ids* — `lint`, `test`, `build`.
+            # Those are not check names and never were: the real ones look like
+            # `quality (ubuntu-latest, Python 3.12)`. Using them here would have
+            # required nine nonexistent checks on every repository at once.
+            if not checks:
+                desired = []
+                blocked_extra = ("observed pull-request check names",)
+            else:
+                desired = list(checks)
+        current = current_value
         if current == desired:
             continue
         planned.append(
@@ -227,7 +253,8 @@ def plan_settings(
                     prerequisite
                     for prerequisite in control.prerequisites
                     if prerequisite not in green
-                ),
+                )
+                + blocked_extra,
             )
         )
     return planned
