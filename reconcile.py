@@ -251,8 +251,46 @@ def observe(repository: Repository, owner: str, client: Client) -> dict[str, Any
         # "you cannot see this repository". Only the first is an answer, and
         # conflating them would report an unprotected `main` as unverifiable
         # instead of as the mismatch it is.
-        observed["protection.main.required_status_checks"] = []
+        #
+        # But "no *legacy* protection" is not "unprotected": a ruleset enforces
+        # the same things through a different endpoint, and four of these five
+        # repositories use one. Reading only the legacy endpoint reported them
+        # all as having an unprotected `main` while they were in fact protected.
+        observed["protection.main.required_status_checks"] = sorted(
+            ruleset_checks(repository.name, owner, client)
+        )
     return observed
+
+
+def ruleset_checks(repository: str, owner: str, client: Client) -> tuple[str, ...]:
+    """Required check contexts enforced by active rulesets on the default branch.
+
+    Rulesets are the mechanism GitHub steers people towards now, and they are
+    invisible to `branches/main/protection`. A repository protected by one looks
+    exactly like an unprotected repository from there.
+    """
+    ok, payload = client(ApiCall("GET", f"repos/{owner}/{repository}/rulesets"))
+    if not ok or not isinstance(payload, list):
+        return ()
+
+    contexts: set[str] = set()
+    for summary in payload:
+        if not isinstance(summary, dict) or summary.get("enforcement") != "active":
+            continue
+        ok, ruleset = client(
+            ApiCall("GET", f"repos/{owner}/{repository}/rulesets/{summary.get('id')}")
+        )
+        if not ok:
+            continue
+        for rule in ruleset.get("rules") or []:
+            if not isinstance(rule, dict) or rule.get("type") != "required_status_checks":
+                continue
+            parameters = rule.get("parameters") or {}
+            for check in parameters.get("required_status_checks") or []:
+                context = str((check or {}).get("context", "")).strip()
+                if context:
+                    contexts.add(context)
+    return tuple(sorted(contexts))
 
 
 def observed_checks(repository: str, owner: str, client: Client) -> tuple[str, ...]:
