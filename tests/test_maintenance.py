@@ -487,7 +487,7 @@ class TestDriftReport:
             prerequisites=("quality_workflow",),
         )
 
-        planned = plan_settings(repo, {}, policy, controls=(control,))
+        planned = plan_settings(repo, {}, policy, controls=(control,), checks=["lint"])
 
         assert planned[0].ready is False
         assert planned[0].blocked_by == ("quality_workflow",)
@@ -508,10 +508,41 @@ class TestDriftReport:
             prerequisites=("quality_workflow",),
         )
 
-        planned = plan_settings(repo, {}, policy, controls=(control,))
+        observed = ["Backend — lint / typecheck / test", "Frontend — typecheck / build"]
+
+        planned = plan_settings(repo, {}, policy, controls=(control,), checks=observed)
 
         assert planned[0].ready is True
-        assert "installer-preflight" in planned[0].desired
+        # The names a pull request actually reports — not gate ids. This
+        # previously asserted `"installer-preflight" in desired`, which is a gate
+        # id and matches no check GitHub ever produces.
+        assert planned[0].desired == observed
+
+    def test_branch_protection_is_never_planned_from_gate_ids(self, tmp_path: Path) -> None:
+        # The regression this replaces: `<class gates>` resolved to
+        # `required_checks()`, so a plan would have required nine nonexistent
+        # contexts — `format`, `lint`, `test` — on every repository at once,
+        # making all five permanently unmergeable.
+        repo = _repo(tmp_path, repo_class="desktop_application")
+        (repo.path / ".github" / "workflows").mkdir(parents=True)
+        (repo.path / ".github" / "workflows" / "ci.yml").write_text("on: push", encoding="utf-8")
+        policy = evaluate(
+            [repo],
+            controls=[FileControl("quality_workflow", ".github/workflows/ci.yml")],
+            settings=[],
+        )
+        control = SettingControl(
+            "default_branch_protection",
+            "protection.main.required_status_checks",
+            expected="<class gates>",
+            prerequisites=("quality_workflow",),
+        )
+
+        planned = plan_settings(repo, {}, policy, controls=(control,))
+
+        assert planned[0].desired == []
+        assert planned[0].ready is False
+        assert "observed pull-request check names" in planned[0].blocked_by
 
     def test_the_matrix_marks_unverifiable_distinctly(self, tmp_path: Path) -> None:
         repo = _repo(tmp_path)
@@ -786,3 +817,34 @@ class TestAuditSectionsAreSeparate:
 
         assert any("description" in line for line in sections["Remote settings"].findings)
         assert not any("description" in line for line in sections["Repository files"].findings)
+
+
+class TestPredicatesAreNotValues:
+    """`expected` sometimes states a rule, and a rule must never be written."""
+
+    def test_a_satisfied_description_is_not_rewritten(self, tmp_path: Path) -> None:
+        # The regression: `<non-empty>` was planned as the desired *value*, so a
+        # run would have set all five descriptions to the literal string
+        # "<non-empty>" — destroying five correct descriptions to satisfy a
+        # predicate they already satisfied.
+        repo = _repo(tmp_path)
+        policy = evaluate([repo], controls=[], settings=[])
+        control = SettingControl("description", "description", expected="<non-empty>")
+
+        planned = plan_settings(
+            repo, {"description": "already a good description"}, policy, controls=(control,)
+        )
+
+        assert planned == []
+
+    def test_an_empty_description_is_planned_as_the_intended_text(self, tmp_path: Path) -> None:
+        root = tmp_path / "demo"
+        root.mkdir(parents=True, exist_ok=True)
+        repo = Repository("demo", "python_cli", root, "What the tool actually does")
+        policy = evaluate([repo], controls=[], settings=[])
+        control = SettingControl("description", "description", expected="<non-empty>")
+
+        planned = plan_settings(repo, {"description": ""}, policy, controls=(control,))
+
+        assert planned[0].desired == "What the tool actually does"
+        assert "<non-empty>" not in str(planned[0].desired)

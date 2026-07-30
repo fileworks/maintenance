@@ -16,6 +16,7 @@ from maintenance.reconcile import (
     observe,
     observed_checks,
     plan,
+    pull_request_checks,
     redact,
     rollout,
     stage_changes,
@@ -388,3 +389,54 @@ class TestObservingProtection:
         client = self._Client("HTTP 403: Resource not accessible by integration")
         observed = observe(_repo(), "fileworks", client)
         assert "protection.main.required_status_checks" not in observed
+
+
+class TestPullRequestChecks:
+    """Required contexts must come from what a pull request actually reports."""
+
+    class Runs(FakeClient):
+        def __call__(self, call: ApiCall) -> tuple[bool, dict[str, Any]]:
+            self.calls.append(call)
+            if "/actions/runs?" in call.path:
+                return True, {
+                    "workflow_runs": [
+                        {"id": 2, "workflow_id": 10},
+                        {"id": 1, "workflow_id": 10},
+                        {"id": 3, "workflow_id": 20},
+                    ]
+                }
+            if call.path.endswith("/runs/2/jobs"):
+                return True, {"jobs": [{"name": "quality (ubuntu-latest, Python 3.12)"}]}
+            if call.path.endswith("/runs/3/jobs"):
+                return True, {"jobs": [{"name": "docs-links"}, {"name": ""}]}
+            return False, {}
+
+    def test_it_reads_the_expanded_job_names(self) -> None:
+        names = pull_request_checks("demo", "fileworks", self.Runs())
+
+        # Matrix-expanded, because GitHub expanded them — not reimplemented here.
+        assert names == ("docs-links", "quality (ubuntu-latest, Python 3.12)")
+
+    def test_only_the_newest_run_of_each_workflow_is_sampled(self) -> None:
+        client = self.Runs()
+
+        pull_request_checks("demo", "fileworks", client)
+
+        # Run 1 is an older run of workflow 10 and must not be fetched; asking
+        # for it would mix names from a workflow revision that no longer exists.
+        assert not [call for call in client.calls if call.path.endswith("/runs/1/jobs")]
+
+    def test_an_unreachable_repository_yields_nothing_rather_than_a_guess(self) -> None:
+        assert (
+            pull_request_checks(
+                "demo",
+                "fileworks",
+                FakeClient(
+                    fail={
+                        "repos/fileworks/demo/actions/runs"
+                        "?event=pull_request&status=completed&per_page=30"
+                    }
+                ),
+            )
+            == ()
+        )

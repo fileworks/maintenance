@@ -269,6 +269,55 @@ def observed_checks(repository: str, owner: str, client: Client) -> tuple[str, .
     return tuple(sorted({str(run.get("name", "")) for run in runs if run.get("name")}))
 
 
+def pull_request_checks(repository: str, owner: str, client: Client) -> tuple[str, ...]:
+    """The names a pull request will actually report, which is what to require.
+
+    `observed_checks` reads the default branch, and that is the wrong sample in
+    two ways. A release commit merged with `[skip ci]` has no check runs at all,
+    so the answer comes back empty — `immich-export` and `paperless-export` both
+    look like that right now. And a job that only runs on `push` shows up there
+    while never reporting on a pull request; requiring `media-sorter`'s
+    "Create release (if warranted)" would block every pull request forever.
+
+    So the sample is the most recent completed `pull_request` run of each
+    workflow, and the names are the job names GitHub produced — already expanded
+    across the matrix, which is the only way to get `quality (ubuntu-latest,
+    Python 3.12)` right without reimplementing matrix expansion.
+    """
+    ok, payload = client(
+        ApiCall(
+            "GET",
+            f"repos/{owner}/{repository}/actions/runs"
+            "?event=pull_request&status=completed&per_page=30",
+        )
+    )
+    if not ok:
+        return ()
+
+    latest_per_workflow: dict[Any, dict[str, Any]] = {}
+    for run in payload.get("workflow_runs") or []:
+        if not isinstance(run, dict):
+            continue
+        key = run.get("workflow_id")
+        seen = latest_per_workflow.get(key)
+        # Runs come back newest first; keep the first of each workflow.
+        if seen is None:
+            latest_per_workflow[key] = run
+
+    names: set[str] = set()
+    for run in latest_per_workflow.values():
+        ok, jobs = client(
+            ApiCall("GET", f"repos/{owner}/{repository}/actions/runs/{run.get('id')}/jobs")
+        )
+        if not ok:
+            continue
+        for job in jobs.get("jobs") or []:
+            name = str(job.get("name", "")).strip()
+            if name:
+                names.add(name)
+    return tuple(sorted(names))
+
+
 def _nested(payload: dict[str, Any], *keys: str) -> Any:
     current: Any = payload
     for key in keys:
