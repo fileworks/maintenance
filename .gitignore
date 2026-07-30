@@ -1,0 +1,24 @@
+.venv/
+__pycache__/
+*.py[cod]
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+dist/
+build/
+.DS_Store
+
+# Regenerable point-in-time reports. The generator is the source of truth; a
+# committed snapshot is a second one that immediately starts drifting.
+audit-*.json
+audit-*.md
+settings-diff-*.md
+
+# Logo-exploration output: 1,569 files / 6.7 MB, every direction × repository ×
+# size × theme, all derived from `identity/directions.py` by `export_all()`.
+# `decision.json` and the generators are the source of truth. `audit.py` already
+# reports this as "not exported in this checkout" when absent, so its absence is
+# stated rather than mistaken for a pass.
+identity/out/
+

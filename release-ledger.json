@@ -1,0 +1,211 @@
+{
+  "ledger_version": "1",
+  "generated_at": "2026-07-28T06:37:30.058832+00:00",
+  "products": [
+    {
+      "name": "media-sorter",
+      "repository": "media-sorter",
+      "owner": "fileworks",
+      "released_version": "1.0.6",
+      "channels_disagree": false,
+      "channels": [
+        {
+          "channel": "github_release",
+          "identifier": "fileworks/media-sorter",
+          "version": "1.0.6",
+          "state": "verified",
+          "verified_at": "2026-07-26T00:00:00+00:00",
+          "detail": "verified against the channel on 2026-07-26"
+        },
+        {
+          "channel": "homebrew",
+          "identifier": "\u2014",
+          "version": null,
+          "state": "not_applicable",
+          "verified_at": null,
+          "detail": ""
+        },
+        {
+          "channel": "pypi",
+          "identifier": "\u2014",
+          "version": null,
+          "state": "not_applicable",
+          "verified_at": null,
+          "detail": "the desktop app ships installers, not a package"
+        },
+        {
+          "channel": "winget",
+          "identifier": "\u2014",
+          "version": null,
+          "state": "not_applicable",
+          "verified_at": null,
+          "detail": ""
+        }
+      ]
+    },
+    {
+      "name": "immich-export",
+      "repository": "immich-export",
+      "owner": "fileworks",
+      "released_version": "0.0.4",
+      "channels_disagree": false,
+      "channels": [
+        {
+          "channel": "github_release",
+          "identifier": "fileworks/immich-export",
+          "version": "0.0.4",
+          "state": "verified",
+          "verified_at": "2026-07-26T00:00:00+00:00",
+          "detail": "verified against the channel on 2026-07-26"
+        },
+        {
+          "channel": "homebrew",
+          "identifier": "fileworks/tap/immich-export",
+          "version": "0.0.4",
+          "state": "verified",
+          "verified_at": "2026-07-26T00:00:00+00:00",
+          "detail": "verified against the channel on 2026-07-26"
+        },
+        {
+          "channel": "pypi",
+          "identifier": "immich-export",
+          "version": "0.0.4",
+          "state": "verified",
+          "verified_at": "2026-07-26T00:00:00+00:00",
+          "detail": "verified against the channel on 2026-07-26"
+        },
+        {
+          "channel": "winget",
+          "identifier": "\u2014",
+          "version": null,
+          "state": "not_applicable",
+          "verified_at": null,
+          "detail": ""
+        }
+      ]
+    },
+    {
+      "name": "paperless-export",
+      "repository": "paperless-export",
+      "owner": "fileworks",
+      "released_version": "1.0.0",
+      "channels_disagree": false,
+      "channels": [
+        {
+          "channel": "github_release",
+          "identifier": "fileworks/paperless-export",
+          "version": "1.0.0",
+          "state": "verified",
+          "verified_at": "2026-07-26T00:00:00+00:00",
+          "detail": "verified against the channel on 2026-07-26"
+        },
+        {
+          "channel": "homebrew",
+          "identifier": "fileworks/tap/paperless-export",
+          "version": "1.0.0",
+          "state": "verified",
+          "verified_at": "2026-07-26T00:00:00+00:00",
+          "detail": "verified against the channel on 2026-07-26"
+        },
+        {
+          "channel": "pypi",
+          "identifier": "paperless-export",
+          "version": "1.0.0",
+          "state": "verified",
+          "verified_at": "2026-07-26T00:00:00+00:00",
+          "detail": "verified against the channel on 2026-07-26"
+        },
+        {
+          "channel": "winget",
+          "identifier": "\u2014",
+          "version": null,
+          "state": "not_applicable",
+          "verified_at": null,
+          "detail": ""
+        }
+      ]
+    },
+    {
+      "name": "unpacksort",
+      "repository": "unpacksort",
+      "owner": "fileworks",
+      "released_version": null,
+      "channels_disagree": false,
+      "channels": [
+        {
+          "channel": "github_release",
+          "identifier": "fileworks/unpacksort",
+          "version": null,
+          "state": "unverified",
+          "verified_at": "2026-07-28T06:37:30.060585+00:00",
+          "detail": "semantic-release staged 1.0.0; publication is waiting on channel setup"
+        },
+        {
+          "channel": "homebrew",
+          "identifier": "fileworks/tap/unpacksort",
+          "version": null,
+          "state": "unverified",
+          "verified_at": "2026-07-28T06:37:30.060594+00:00",
+          "detail": "semantic-release staged 1.0.0; publication is waiting on channel setup"
+        },
+        {
+          "channel": "pypi",
+          "identifier": "unpacksort",
+          "version": null,
+          "state": "unverified",
+          "verified_at": "2026-07-28T06:37:30.060590+00:00",
+          "detail": "semantic-release staged 1.0.0; publication is waiting on channel setup"
+        },
+        {
+          "channel": "winget",
+          "identifier": "fileworks.unpacksort",
+          "version": null,
+          "state": "unverified",
+          "verified_at": "2026-07-28T06:37:30.060598+00:00",
+          "detail": "semantic-release staged 1.0.0; publication is waiting on channel setup"
+        }
+      ]
+    },
+    {
+      "name": "homebrew-tap",
+      "repository": "homebrew-tap",
+      "owner": "fileworks",
+      "released_version": "unversioned",
+      "channels_disagree": false,
+      "channels": [
+        {
+          "channel": "github_release",
+          "identifier": "\u2014",
+          "version": null,
+          "state": "not_applicable",
+          "verified_at": null,
+          "detail": "the tap is unversioned infrastructure"
+        },
+        {
+          "channel": "homebrew",
+          "identifier": "fileworks/tap",
+          "version": "unversioned",
+          "state": "verified",
+          "verified_at": "2026-07-26T00:00:00+00:00",
+          "detail": "the tap itself carries no version"
+        },
+        {
+          "channel": "pypi",
+          "identifier": "\u2014",
+          "version": null,
+          "state": "not_applicable",
+          "verified_at": null,
+          "detail": ""
+        },
+        {
+          "channel": "winget",
+          "identifier": "\u2014",
+          "version": null,
+          "state": "not_applicable",
+          "verified_at": null,
+          "detail": ""
+        }
+      ]
+    }
+  ]
+}

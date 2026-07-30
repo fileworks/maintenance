@@ -1,0 +1,63 @@
+# The docs-links gate, shared because five copies of a link checker is five
+# copies that drift.
+#
+# It is deliberately dependency-free: a link checker that needs a marketplace
+# action is a link checker that breaks when that action moves. Relative links
+# are resolved against the repository; external ones are only checked when
+# `external` is on, because a rate-limited third-party host must never be able
+# to turn a repository's `main` red.
+
+name: docs-links
+
+on:
+  workflow_call:
+    inputs:
+      external:
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  docs-links:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: docs-links
+        shell: python
+        env:
+          CHECK_EXTERNAL: ${{ inputs.external }}
+        run: |
+          import os, pathlib, re, sys, urllib.request
+
+          root = pathlib.Path(".")
+          link = re.compile(r"\[[^\]]*\]\(([^)\s]+)\)")
+          external = os.environ.get("CHECK_EXTERNAL") == "true"
+          problems = []
+
+          for markdown in root.rglob("*.md"):
+              if any(part in {".git", "node_modules", ".venv"} for part in markdown.parts):
+                  continue
+              text = markdown.read_text(encoding="utf-8", errors="replace")
+              for target in link.findall(text):
+                  if target.startswith("#"):
+                      continue
+                  if target.startswith(("http://", "https://")):
+                      if not external:
+                          continue
+                      try:
+                          request = urllib.request.Request(target, method="HEAD")
+                          urllib.request.urlopen(request, timeout=10)
+                      except Exception as exc:
+                          problems.append(f"{markdown}: {target} ({type(exc).__name__})")
+                      continue
+                  resolved = (markdown.parent / target.split("#")[0]).resolve()
+                  if not resolved.exists():
+                      problems.append(f"{markdown}: {target} does not exist")
+
+          for problem in problems:
+              print(problem)
+          sys.exit(1 if problems else 0)

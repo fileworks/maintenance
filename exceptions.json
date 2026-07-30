@@ -1,0 +1,9 @@
+{
+  "_comment": [
+    "A control that should not apply to a repository goes here.",
+    "Every entry needs a reason, an owner, and an expiry — an exception without",
+    "those is just a disabled check, and the evaluator refuses to load one.",
+    "A passed expiry makes the exception itself report as stale."
+  ],
+  "exceptions": []
+}

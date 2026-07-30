@@ -1,0 +1,50 @@
+[project]
+name = "fileworks-maintenance"
+version = "0.1.0"
+description = "Executable cross-repository policy for the fileworks organization."
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.12"
+
+# This package is never built or published. It is imported as `maintenance.*`
+# from the directory that contains it, so there is deliberately no
+# `[build-system]`: its only install step is being on disk next to the
+# repositories it evaluates. CI reproduces that layout by checking out into a
+# `maintenance/` subdirectory, so `python -m maintenance.cli` works unchanged.
+dependencies = [
+  # `identity/rollout.py` and MediaSorter's branding generator both need it.
+  # It was an undeclared import until this file existed, which turned a missing
+  # optional dependency into two failing tests nobody was running.
+  "pillow>=11.0",
+]
+
+[dependency-groups]
+dev = [
+  "mypy>=1.13",
+  "pytest>=8.3",
+  "ruff>=0.8",
+]
+
+# Matches immich-export and paperless-export exactly. unpacksort selects `ALL`
+# and keeps it — converging downward would be a regression.
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "UP", "B", "A", "C4", "SIM", "RUF", "PTH", "RET", "ARG"]
+# Prose in this package uses real typographic characters on purpose: `×` for
+# dimensions (`16×16`) and `–` for numeric ranges (`8.3–8.5`). Those are correct
+# usage, not confusables to be "corrected" into ASCII.
+ignore = ["RUF001", "RUF002", "RUF003"]
+
+[tool.ruff.lint.per-file-ignores]
+# pytest fixtures are frequently used only for their side effect
+"tests/**" = ["ARG001"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
