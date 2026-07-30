@@ -374,7 +374,10 @@ def validate(out: Path) -> list[AssetIssue]:
             )
 
     for path in sorted(out.rglob("*.svg")):
-        relative = str(path.relative_to(out))
+        # Manifest keys are POSIX, so the path found on disk has to be normalised
+        # the same way before it is looked up. `str()` here reported every asset
+        # on Windows as "present but not in the manifest".
+        relative = path.relative_to(out).as_posix()
         if relative not in recorded:
             issues.append(AssetIssue(relative, "unlisted", "present but not in the manifest"))
 

@@ -213,6 +213,18 @@ class TestExportAndValidation:
 
         assert any(issue.kind == "unlisted" for issue in validate(exported))
 
+    def test_a_nested_unlisted_asset_is_reported_with_a_posix_path(self, exported: Path) -> None:
+        # The flat `stray.svg` above has no separator to get wrong, which is
+        # exactly why it passed on Windows while every nested asset was reported
+        # unlisted. This one is nested, so the separator is part of the assertion.
+        nested = exported / "stray" / "deeper" / "stray.svg"
+        nested.parent.mkdir(parents=True)
+        nested.write_text("<svg/>", encoding="utf-8")
+
+        unlisted = [issue for issue in validate(exported) if issue.kind == "unlisted"]
+
+        assert [issue.path for issue in unlisted] == ["stray/deeper/stray.svg"]
+
     def test_exporting_twice_produces_identical_bytes(self, tmp_path: Path) -> None:
         first = tmp_path / "a"
         second = tmp_path / "b"
