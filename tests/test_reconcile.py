@@ -19,6 +19,7 @@ from maintenance.reconcile import (
     pull_request_checks,
     redact,
     rollout,
+    ruleset_checks,
     stage_changes,
 )
 
@@ -440,3 +441,61 @@ class TestPullRequestChecks:
             )
             == ()
         )
+
+
+class TestRulesets:
+    """A ruleset protects `main` just as legacy protection does."""
+
+    class WithRuleset(FakeClient):
+        def __call__(self, call: ApiCall) -> tuple[bool, dict[str, Any]]:
+            self.calls.append(call)
+            if call.path == "repos/fileworks/demo":
+                return True, {"description": "a demo", "delete_branch_on_merge": True}
+            if call.path.endswith("/branches/main/protection"):
+                return False, {"error": "Branch not protected"}
+            if call.path.endswith("/rulesets"):
+                return True, [  # type: ignore[return-value]
+                    {"id": 7, "enforcement": "active"},
+                    {"id": 8, "enforcement": "disabled"},
+                ]
+            if call.path.endswith("/rulesets/7"):
+                return True, {
+                    "rules": [
+                        {"type": "pull_request", "parameters": {}},
+                        {
+                            "type": "required_status_checks",
+                            "parameters": {
+                                "required_status_checks": [
+                                    {"context": "quality (ubuntu-latest, Python 3.12)"},
+                                    {"context": "docs-links"},
+                                ]
+                            },
+                        },
+                    ]
+                }
+            return False, {}
+
+    def test_ruleset_contexts_are_read(self) -> None:
+        assert ruleset_checks("demo", "fileworks", self.WithRuleset()) == (
+            "docs-links",
+            "quality (ubuntu-latest, Python 3.12)",
+        )
+
+    def test_a_disabled_ruleset_is_not_counted(self) -> None:
+        client = self.WithRuleset()
+
+        ruleset_checks("demo", "fileworks", client)
+
+        assert not [call for call in client.calls if call.path.endswith("/rulesets/8")]
+
+    def test_a_ruleset_protected_branch_is_not_reported_unprotected(self) -> None:
+        # The false positive: reading only the legacy endpoint said `main` was
+        # unprotected on four repositories that were protected by a ruleset.
+        repo = _repo()
+
+        observed = observe(repo, "fileworks", self.WithRuleset())
+
+        assert observed["protection.main.required_status_checks"] == [
+            "docs-links",
+            "quality (ubuntu-latest, Python 3.12)",
+        ]
