@@ -729,6 +729,12 @@ class TestSharedWorkflows:
         assert f"cargo-audit --locked --version {CARGO_AUDIT_VERSION}" in (DEPENDENCY_AUDIT_JOB)
         assert "uv run pip-audit" not in DEPENDENCY_AUDIT_JOB
 
+    # The technique, not the assertion, is POSIX-only: it puts a `#!/bin/sh` shim
+    # named `uvx` on an emptied PATH, and `cmd.exe` will not run an extensionless
+    # shebang script. The generated command itself is still asserted above and on
+    # the POSIX runners. Left as a skip rather than a Windows shim so the shape of
+    # what is proven stays the same everywhere it runs.
+    @pytest.mark.skipif(os.name == "nt", reason="the fake-binary shim relies on a shebang")
     def test_generated_pinned_auditor_command_starts_in_a_clean_environment(
         self, tmp_path: Path
     ) -> None:
