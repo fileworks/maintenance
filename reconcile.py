@@ -37,6 +37,13 @@ Outcome = Literal["applied", "skipped", "blocked", "failed", "unverified"]
 SECRET_MARKERS = ("token", "secret", "password", "key", "authorization")
 
 REDACTED = "[REDACTED]"
+_GITHUB_TOKEN = re.compile(
+    r"(?:"
+    r"github_pat_[A-Za-z0-9_]{20,}"
+    r"|ghs_[A-Za-z0-9.\-_]{36,}"
+    r"|gh[pour]_[A-Za-z0-9_]{16,}"
+    r")"
+)
 
 
 def redact(value: Any) -> Any:
@@ -44,7 +51,7 @@ def redact(value: Any) -> Any:
     if isinstance(value, str):
         # A GitHub token is recognisable by shape; redact it wherever it appears,
         # including inside a longer string such as a URL.
-        return re.sub(r"gh[pousr]_[A-Za-z0-9]{16,}", REDACTED, value)
+        return _GITHUB_TOKEN.sub(REDACTED, value)
     if isinstance(value, dict):
         return {
             key: (

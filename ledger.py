@@ -1,6 +1,6 @@
 """One machine-readable answer to "what is actually released, where?".
 
-Five repositories publish to four channels, and every README that hard-codes a
+The product repositories publish to four channels, and every README that hard-codes a
 version becomes wrong the next time one of them ships. So the versions live here
 once, each with the target it was verified against and *when* — and anything
 that was not verified is marked `unverified` rather than assumed current.

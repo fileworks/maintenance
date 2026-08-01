@@ -39,6 +39,7 @@ from maintenance.renovate import (
     MetricsBaseline,
     automerge_allowed,
     base_preset,
+    complete_pipeline,
     metrics_markdown,
     repo_configs,
     write_preset,
@@ -266,23 +267,41 @@ class TestGates:
             "desktop_application",
             "python_cli",
             "homebrew_tap",
+            "governance_tool",
         }
 
 
 class TestRenovate:
-    def test_the_preset_never_automerges_a_publisher(self) -> None:
+    def test_every_managed_update_class_is_eligible(self) -> None:
         assert automerge_allowed("ruff", "patch") is True
-        assert automerge_allowed("semantic-release", "patch") is False
-        assert automerge_allowed("tauri-cli", "minor") is False
+        assert automerge_allowed("semantic-release", "patch") is True
+        assert automerge_allowed("tauri-cli", "minor") is True
 
-    def test_majors_never_automerge(self) -> None:
-        assert automerge_allowed("ruff", "major") is False
+    def test_majors_are_eligible_only_through_the_same_gate(self) -> None:
+        assert automerge_allowed("ruff", "major") is True
 
-    def test_security_updates_are_not_automerged_blindly(self) -> None:
+    def test_security_updates_use_protected_branch_automerge(self) -> None:
         preset = base_preset()
 
-        assert preset["vulnerabilityAlerts"]["automerge"] is False
+        assert preset["vulnerabilityAlerts"]["automerge"] is True
+        assert preset["vulnerabilityAlerts"]["platformAutomerge"] is True
         assert preset["vulnerabilityAlerts"]["schedule"] == ["at any time"]
+
+    @pytest.mark.parametrize(
+        "state",
+        ["missing", "pending", "skipped", "neutral", "failure", "stale"],
+    )
+    def test_any_incomplete_required_check_blocks_merge(self, state: str) -> None:
+        assert (
+            complete_pipeline({"quality": "success", "package": state}, {"quality", "package"})
+            is False
+        )
+
+    def test_every_required_check_must_explicitly_succeed(self) -> None:
+        assert complete_pipeline(
+            {"quality": "success", "package": "success"},
+            {"quality", "package"},
+        )
 
     def test_a_stability_age_is_required(self) -> None:
         assert base_preset()["minimumReleaseAge"]
@@ -555,7 +574,7 @@ class TestDriftReport:
 
 
 class TestWorkspaceShape:
-    def test_the_five_governed_repositories_are_named(self, tmp_path: Path) -> None:
+    def test_all_six_governed_repositories_are_named(self, tmp_path: Path) -> None:
         names = {repo.name for repo in repositories(tmp_path)}
 
         assert names == {
@@ -564,6 +583,7 @@ class TestWorkspaceShape:
             "paperless-export",
             "unpacksort",
             "homebrew-tap",
+            "maintenance",
         }
 
     def test_every_file_control_states_why_it_exists(self) -> None:

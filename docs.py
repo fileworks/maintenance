@@ -45,6 +45,16 @@ SECTIONS: dict[RepoClass, tuple[str, ...]] = {
         "License",
     ),
     "homebrew_tap": ("Overview", "Install", "Formulas", "Development", "License"),
+    "governance_tool": (
+        "Overview",
+        "Usage",
+        "Policy",
+        "Renovate",
+        "Gate alignment",
+        "Development",
+        "Security",
+        "License",
+    ),
 }
 
 #: Install commands each class is expected to document, as regular expressions.
@@ -55,6 +65,7 @@ INSTALL_PATTERNS: dict[RepoClass, tuple[tuple[str, str], ...]] = {
     ),
     "desktop_application": ((r"\.dmg|\.msi|\.exe|Releases", "a link to the installers"),),
     "homebrew_tap": ((r"brew tap\s+\S+", "a `brew tap` line"),),
+    "governance_tool": ((r"python -m maintenance\.cli", "the maintenance audit command"),),
 }
 
 _HEADING = re.compile(r"^#{1,3}\s+(.+?)\s*$", re.MULTILINE)
@@ -254,8 +265,9 @@ def check_readme(
         check_structure(repository, repo_class, markdown)
         + check_install_commands(repository, repo_class, markdown)
         + check_links(repository, markdown, repo_root)
-        + check_icon(repository, markdown)
     )
+    if repo_class != "governance_tool":
+        issues += check_icon(repository, markdown)
     if ledger is not None:
         issues += check_versions(repository, markdown, ledger)
     return issues

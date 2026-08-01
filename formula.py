@@ -1,10 +1,9 @@
-"""Generating a hermetic Homebrew formula from a lockfile.
+"""Reference generator and regression model for hermetic Homebrew formulas.
 
-The two exporter formulas take the personal-tap shortcut: they run `pip install
-name==version` at build time, which means the dependency set is whatever PyPI
-serves that day. That is fine for a personal tap and wrong for anything a
-stranger installs — `brew audit --strict` objects to it, and an install can
-differ between two machines an hour apart.
+The live exporter formulas in ``homebrew-tap`` use the newer cross-platform
+wheel generator maintained in that repository. This module remains the
+independent, sdist-oriented reference used by governance tests and historical
+fixtures; files below ``generated/`` are test inputs, not release truth.
 
 This module produces the strict form instead: a `Language::Python::Virtualenv`
 formula whose every dependency is a pinned `resource` block with its own URL and

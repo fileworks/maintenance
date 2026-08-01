@@ -1,14 +1,12 @@
 """One Renovate preset, and the thin extensions every repository points at it.
 
-The preset is generated rather than hand-copied into five files, because five
-hand-copied files are five files that drift. Each repository keeps a two-line
+The preset is generated rather than hand-copied into six files, because copied
+files drift. Each repository keeps a two-line
 `renovate.json` that extends the shared preset and adds only what is genuinely
 local — a Rust toolchain in one place, a formula manager in another.
 
-The automerge allowlist is deliberately narrow. Patch and minor updates to
-ordinary dependencies merge themselves once every required check is green;
-anything that can change what users receive — publishers, toolchains, codecs,
-installers, security-sensitive libraries — always waits for a person.
+Every managed update class is eligible only through protected-branch automerge,
+after the repository's complete applicable pipeline is successful.
 """
 
 from __future__ import annotations
@@ -22,22 +20,18 @@ from maintenance.policy import RepoClass
 
 PRESET_NAME = "fileworks-base"
 
-#: Package patterns that never automerge, whatever their update type. Each entry
-#: is here because a bad version of it reaches users directly.
-MANUAL_ONLY = (
-    "pyinstaller",
-    "tauri*",
-    "@tauri-apps/**",
-    "semantic-release",
-    "python-semantic-release",
-    "twine",
-    "ffmpeg*",
-    "pillow",
-    "pikepdf",
-    "cryptography",
-    "certifi",
-    "urllib3",
-    "requests",
+AUTOMERGE_UPDATE_TYPES = frozenset(
+    {
+        "major",
+        "minor",
+        "patch",
+        "digest",
+        "lockFileMaintenance",
+        "pin",
+        "pinDigest",
+        "rollback",
+        "replacement",
+    }
 )
 
 #: How long a release must have existed before it is eligible. Long enough for a
@@ -66,32 +60,49 @@ def base_preset() -> dict[str, Any]:
             "labels": ["security"],
             "schedule": ["at any time"],
             "minimumReleaseAge": None,
-            "automerge": False,
+            "automerge": True,
+            "automergeType": "pr",
+            "platformAutomerge": True,
         },
         "packageRules": [
             {
                 "description": (
-                    "Low-risk updates merge themselves once every required check is green."
+                    "Every managed update class is eligible only after every protected "
+                    "applicable check succeeds."
                 ),
-                "matchUpdateTypes": ["patch", "minor", "digest"],
+                "matchUpdateTypes": sorted(AUTOMERGE_UPDATE_TYPES),
                 "automerge": True,
                 "automergeType": "pr",
                 "platformAutomerge": True,
             },
             {
-                "description": "Majors always get a person; they change behaviour by definition.",
+                "description": "Label major updates without bypassing the complete green pipeline.",
                 "matchUpdateTypes": ["major"],
-                "automerge": False,
+                "automerge": True,
                 "labels": ["major-update"],
             },
             {
                 "description": (
-                    "Publishers, toolchains, codecs, installers, and security-sensitive "
-                    "libraries always get a person, at any update type."
+                    "Keep publisher, toolchain, codec, installer, and security-sensitive "
+                    "updates visible while retaining complete-pipeline automerge eligibility."
                 ),
-                "matchPackageNames": list(MANUAL_ONLY),
-                "automerge": False,
-                "labels": ["needs-review"],
+                "matchPackageNames": [
+                    "pyinstaller",
+                    "tauri*",
+                    "@tauri-apps/**",
+                    "semantic-release",
+                    "python-semantic-release",
+                    "twine",
+                    "ffmpeg*",
+                    "pillow",
+                    "pikepdf",
+                    "cryptography",
+                    "certifi",
+                    "urllib3",
+                    "requests",
+                ],
+                "automerge": True,
+                "labels": ["high-impact-dependency"],
             },
             {
                 "description": "Group GitHub Actions bumps into one reviewable PR.",
@@ -127,13 +138,13 @@ def base_preset() -> dict[str, Any]:
                 "description": "Isolate the Python runtime; it moves everything else with it.",
                 "matchPackageNames": ["python"],
                 "groupName": "Python runtime",
-                "automerge": False,
+                "automerge": True,
             },
             {
                 "description": "Isolate the Rust/Tauri family; they are coupled and user-facing.",
                 "matchManagers": ["cargo"],
                 "groupName": "Rust and Tauri",
-                "automerge": False,
+                "automerge": True,
             },
         ],
     }
@@ -169,17 +180,7 @@ class RepoRenovate:
             config.update(shared)
         else:
             config["extends"] = [self.preset_source]
-        if self.repo_class == "desktop_application":
-            rules = list(config.get("packageRules", []))
-            rules.append(
-                {
-                    "description": "Installer and bundler changes are verified by hand.",
-                    "matchPackageNames": ["pyinstaller", "tauri", "@tauri-apps/cli"],
-                    "automerge": False,
-                }
-            )
-            config["packageRules"] = rules
-        elif self.repo_class == "homebrew_tap":
+        if self.repo_class == "homebrew_tap":
             config["enabledManagers"] = ["github-actions"]
             config["description"] = (
                 "Formula versions are bumped by the release pipeline, not by Renovate."
@@ -194,6 +195,7 @@ def repo_configs(preset_source: str) -> tuple[RepoRenovate, ...]:
         RepoRenovate("paperless-export", "python_cli", preset_source),
         RepoRenovate("unpacksort", "python_cli", preset_source),
         RepoRenovate("homebrew-tap", "homebrew_tap", preset_source),
+        RepoRenovate("maintenance", "governance_tool", preset_source),
     )
 
 
@@ -211,21 +213,18 @@ def write_repo_config(repo: RepoRenovate, repo_root: Path, *, inline: bool = Fal
 
 
 def automerge_allowed(package: str, update_type: str) -> bool:
-    """Whether the allowlist lets this update merge without a person.
+    """Whether policy makes this update eligible for protected-branch merge.
 
-    The check is the same one Renovate will make, expressed here so it can be
-    tested — a policy nobody can test is a policy nobody can trust.
+    Package risk changes its grouping and label, not whether it may bypass a
+    complete required pipeline: nothing may bypass that pipeline.
     """
-    if update_type not in {"patch", "minor", "digest"}:
-        return False
-    lowered = package.lower()
-    for pattern in MANUAL_ONLY:
-        if pattern.endswith("*"):
-            if lowered.startswith(pattern.rstrip("*").rstrip("/")):
-                return False
-        elif lowered == pattern:
-            return False
-    return True
+    del package
+    return update_type in AUTOMERGE_UPDATE_TYPES
+
+
+def complete_pipeline(check_states: dict[str, str], required: set[str]) -> bool:
+    """Only fresh explicit success for every required context permits merge."""
+    return bool(required) and all(check_states.get(check) == "success" for check in required)
 
 
 @dataclass(frozen=True)

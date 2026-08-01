@@ -48,23 +48,23 @@ GATES: tuple[Gate, ...] = (
     Gate(
         "format",
         "Source formatting is canonical.",
-        ("desktop_application", "python_cli"),
+        ("desktop_application", "python_cli", "governance_tool"),
     ),
     Gate(
         "lint",
         "No lint findings at the configured level.",
-        ("desktop_application", "python_cli"),
+        ("desktop_application", "python_cli", "governance_tool"),
     ),
     Gate(
         "typecheck",
         "Static types check cleanly.",
-        ("desktop_application", "python_cli"),
+        ("desktop_application", "python_cli", "governance_tool"),
         not_applicable_reason="A tap holds Ruby formulas; `brew audit` covers their correctness.",
     ),
     Gate(
         "test",
         "The unit and integration suites pass.",
-        ("desktop_application", "python_cli"),
+        ("desktop_application", "python_cli", "governance_tool"),
     ),
     Gate(
         "build",
@@ -79,13 +79,13 @@ GATES: tuple[Gate, ...] = (
     Gate(
         "dependency-audit",
         "No known-vulnerable dependency in the locked set.",
-        ("desktop_application", "python_cli"),
+        ("desktop_application", "python_cli", "governance_tool"),
         not_applicable_reason="A tap pins upstream releases; their own audits apply.",
     ),
     Gate(
         "docs-links",
         "Documented commands and links resolve.",
-        ("desktop_application", "python_cli", "homebrew_tap"),
+        ("desktop_application", "python_cli", "homebrew_tap", "governance_tool"),
     ),
     Gate(
         "release-integrity",
@@ -134,6 +134,7 @@ def matrix() -> dict[str, dict[str, str]]:
         "desktop_application",
         "python_cli",
         "homebrew_tap",
+        "governance_tool",
     )
     return {
         gate.gate_id: {
