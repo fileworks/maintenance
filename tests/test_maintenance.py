@@ -288,6 +288,7 @@ class TestDependabot:
         assert "pull_request:" in AUTOMERGE_WORKFLOW
         assert "permissions:\n  contents: read\n  pull-requests: read" in AUTOMERGE_WORKFLOW
         assert "    permissions:\n      contents: write" in AUTOMERGE_WORKFLOW
+        assert "secrets.SEMANTIC_RELEASE_TOKEN || secrets.GITHUB_TOKEN" in AUTOMERGE_WORKFLOW
 
     @pytest.mark.parametrize(
         "state",
