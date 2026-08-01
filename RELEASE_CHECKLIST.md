@@ -3,8 +3,10 @@
 Automation verifies versions, archive types, filenames, checksums, package
 metadata, GitHub assets, PyPI publication, and Homebrew formula inputs. This
 checklist is only for behavior that requires a real clean Windows or macOS host.
-Run it once per release candidate and record the version, observer, date, and
-results in the release notes.
+Run it periodically and after installer, startup, migration, signing, or
+operating-system support changes. A completely green automated release does not
+wait for this checklist. Record the version, observer, date, and results in the
+release notes or a follow-up issue.
 
 MediaSorter is intentionally **unsigned for now**. Windows SmartScreen and
 macOS Gatekeeper may therefore warn. The warning is expected; the download must
@@ -97,6 +99,6 @@ SHA-256 must match the published checksum.
 - [ ] Attach the calculated SHA-256 values and exact artifact filenames.
 - [ ] Record any operating-system warning verbatim enough to distinguish the
   expected unsigned warning from corruption or a different publisher.
-- [ ] If anything fails, keep the release as a draft, attach logs/screenshots,
-  and use the matching recovery playbook in
+- [ ] If anything fails, stop follow-on distribution changes, attach
+  logs/screenshots, and use the matching recovery playbook in
   [release-playbooks.md](release-playbooks.md).

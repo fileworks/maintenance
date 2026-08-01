@@ -1,4 +1,4 @@
-"""The publication gate holds a draft until the evidence is real."""
+"""Automated evidence gates publication; clean-host evidence is advisory."""
 
 from __future__ import annotations
 
@@ -40,17 +40,17 @@ def _full_gate(**overrides: object) -> PublicationGate:
     return PublicationGate(**defaults)  # type: ignore[arg-type]
 
 
-class TestTheDefaultIsHeld:
+class TestAutomatedPublicationGate:
     def test_an_empty_gate_never_publishes(self) -> None:
         gate = PublicationGate("1.0.7")
         assert not gate.publishable
         assert gate.blockers
 
-    def test_a_missing_platform_is_named_rather_than_ignored(self) -> None:
+    def test_a_missing_clean_host_platform_is_advisory(self) -> None:
         gate = _full_gate(smoke=[_complete_smoke("macos-arm64", "a.dmg")])
-        assert not gate.publishable
-        assert any("windows" in item for item in gate.blockers)
-        assert any("macos-x86_64" in item for item in gate.blockers)
+        assert gate.publishable
+        assert any("windows" in item for item in gate.advisories)
+        assert any("macos-x86_64" in item for item in gate.advisories)
 
     def test_declaring_a_platform_unshipped_covers_it(self) -> None:
         gate = _full_gate(
@@ -59,10 +59,10 @@ class TestTheDefaultIsHeld:
         )
         assert gate.publishable
 
-    def test_evidence_for_an_unshipped_platform_is_a_contradiction(self) -> None:
+    def test_evidence_for_an_unshipped_platform_is_an_advisory(self) -> None:
         gate = _full_gate(not_shipped=["windows"])
-        assert not gate.publishable
-        assert any("decide which is true" in item for item in gate.blockers)
+        assert gate.publishable
+        assert any("reconcile the record" in item for item in gate.advisories)
 
     def test_describing_no_artifacts_blocks(self) -> None:
         gate = _full_gate(artifacts=[])
@@ -146,16 +146,21 @@ class TestSigningClaims:
 
 
 class TestChecklist:
-    def test_a_held_draft_lists_what_is_missing(self) -> None:
+    def test_a_held_release_lists_what_is_missing(self) -> None:
         text = PublicationGate("1.0.7").checklist()
         assert "HELD" in text
         assert "## Outstanding" in text
 
-    def test_a_ready_draft_says_so_and_shows_the_evidence(self) -> None:
+    def test_a_ready_release_says_so_and_shows_the_evidence(self) -> None:
         text = _full_gate().checklist()
         assert "READY" in text
         assert "MediaSorter_aarch64.dmg" in text
         assert "Niklas, 2026-08-01" in text
+
+    def test_missing_clean_host_evidence_is_a_post_release_follow_up(self) -> None:
+        text = _full_gate(smoke=[]).checklist()
+        assert "READY" in text
+        assert "## Post-release follow-up" in text
 
     def test_unshipped_platforms_appear_in_the_record(self) -> None:
         text = _full_gate(

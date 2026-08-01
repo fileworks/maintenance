@@ -30,6 +30,7 @@ production settings by accident.
 | `renovate.py` | The shared Renovate policy, the per-repository generator, and the automerge allowlist. |
 | `ledger.py` | The canonical machine-readable release ledger. |
 | `docs.py` | README information architecture, install-command checks, version-drift checks against the ledger, and link checks. |
+| `deployments.py` | Canonical GitHub Release versus Deployment environments and workflow checks. |
 | `drift.py` | The report, the dry-run plan for remote settings, and the compliance matrix. |
 | `formula.py`, `generated/` | The sdist-oriented reference generator and frozen regression fixtures. Live release formulas are generated and owned by `homebrew-tap`. |
 | `release-ledger.json` | The generated ledger. Regenerate it; do not hand-edit it. |
@@ -111,6 +112,7 @@ The audit checks that what is on display is still the family that was approved.
 | Desktop signing | Publish MediaSorter unsigned for now and describe the expected operating-system warning accurately. Signing and notarization remain documented future hardening, not a release blocker. |
 | Visual identity | Keep the compact literal icon family approved on 2026-07-28. Material replacement still requires a new visual review. |
 | Human release evidence | Use the single [clean-host release checklist](RELEASE_CHECKLIST.md) after automated artifact and channel verification. |
+| Publication model | A green release pipeline publishes a GitHub Release. Protected `github-release`, `pypi`, `homebrew`, and `winget` environments record the applicable channel deployments. |
 
 ## Development
 

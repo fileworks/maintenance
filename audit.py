@@ -19,6 +19,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from maintenance.deployments import check_release_deployments
 from maintenance.docs import check_readme
 from maintenance.drift import DriftReport, compliance_matrix
 from maintenance.formula import check_hermetic
@@ -201,6 +202,22 @@ def run(
     ]
     report.sections.append(
         AuditSection("Documentation", documentation, checked=on_disk, note=absent_note)
+    )
+
+    deployments = [
+        issue
+        for repo in repos
+        for issue in check_release_deployments(
+            repo.name, repo.path / ".github" / "workflows" / "release.yml"
+        )
+    ]
+    report.sections.append(
+        AuditSection(
+            "Release deployments",
+            deployments,
+            checked=on_disk,
+            note=absent_note,
+        )
     )
 
     gate_reports = [map_gates(repo) for repo in repos]

@@ -1,19 +1,10 @@
-"""Whether a MediaSorter release draft may be published yet.
+"""Whether automated MediaSorter evidence permits publication.
 
-Tasks 8.3–8.5 are clean-machine checks that only a person on real hardware can
-perform. This module is 8.6: it holds the draft until that evidence exists, and
-refuses a release whose documentation claims more than verification found.
-
-The design rule throughout is that *absence of evidence is not evidence*. An
-unfilled field is `outstanding`, never a pass. That is deliberately the opposite
-of how a checklist behaves when someone is tired at the end of a release: the
-default has to be "not yet", or the gate is decoration.
-
-The signing check is the sharper one. A draft that documents itself as notarized
-while verification found an unsigned bundle is worse than an unsigned release,
-because it tells users a Gatekeeper prompt is a bug rather than the truth. So a
-mismatch between documented and verified state is fatal, in both directions —
-under-claiming is also a documentation defect, just a harmless one for the user.
+A green tag pipeline publishes without waiting for a human clean-host run.
+Artifact identity and signing claims remain hard gates because automation can
+prove them exactly. Physical-host observations remain typed, reviewable
+follow-up evidence: useful for periodic confidence and installer changes, but
+not a routine release blocker.
 """
 
 from __future__ import annotations
@@ -21,8 +12,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 
-#: Every platform a release must cover before it can be published. A draft that
-#: simply never mentions Windows must not pass by omission.
+#: Every platform recommended for periodic clean-host confidence evidence.
 REQUIRED_PLATFORMS: tuple[str, ...] = ("macos-arm64", "macos-x86_64", "windows")
 
 #: The signing states an artifact may be in. `unsigned` is a legitimate,
@@ -84,7 +74,7 @@ class ArtifactEvidence:
 
 @dataclass(frozen=True)
 class SmokeEvidence:
-    """One clean-machine run: what was installed, and what was observed.
+    """One optional clean-machine run: what was installed and observed.
 
     `observed_by` and `observed_on` are required for the same reason an
     exception needs an owner and an expiry — evidence nobody signed is a note,
@@ -132,7 +122,7 @@ class SmokeEvidence:
 
 @dataclass(frozen=True)
 class PublicationGate:
-    """The decision, and the reasons behind it."""
+    """The automated publication decision and post-release advisories."""
 
     version: str
     artifacts: Sequence[ArtifactEvidence] = field(default_factory=tuple)
@@ -145,11 +135,22 @@ class PublicationGate:
     def blockers(self) -> list[str]:
         found: list[str] = []
 
+        for artifact in self.artifacts:
+            found.extend(artifact.problems())
+
+        if not self.artifacts:
+            found.append("no artifacts were described, so nothing can be published")
+        return found
+
+    @property
+    def advisories(self) -> list[str]:
+        """Non-blocking physical-host evidence still worth collecting."""
+        found: list[str] = []
         covered = {evidence.platform for evidence in self.smoke}
         for platform in REQUIRED_PLATFORMS:
             if platform in covered or platform in self.not_shipped:
                 continue
-            found.append(f"{platform}: no clean-machine evidence at all")
+            found.append(f"{platform}: no clean-machine evidence recorded")
 
         for platform in self.not_shipped:
             if platform not in REQUIRED_PLATFORMS:
@@ -159,16 +160,10 @@ class PublicationGate:
             if evidence.platform in self.not_shipped:
                 found.append(
                     f"{evidence.platform}: recorded as not shipped, but there is "
-                    f"evidence for it — decide which is true"
+                    f"evidence for it — reconcile the record"
                 )
             for item in evidence.outstanding():
                 found.append(f"{evidence.platform} ({evidence.artifact}): {item}")
-
-        for artifact in self.artifacts:
-            found.extend(artifact.problems())
-
-        if not self.artifacts:
-            found.append("no artifacts were described, so nothing can be published")
         return found
 
     @property
@@ -176,7 +171,7 @@ class PublicationGate:
         return not self.blockers
 
     def checklist(self) -> str:
-        """The text to attach to the draft, whichever way it went."""
+        """Render the hard gate and optional post-release evidence."""
         verdict = (
             "READY — every check is accounted for."
             if self.publishable
@@ -187,6 +182,11 @@ class PublicationGate:
         if self.blockers:
             lines += ["## Outstanding", ""]
             lines += [f"- {item}" for item in self.blockers]
+            lines.append("")
+
+        if self.advisories:
+            lines += ["## Post-release follow-up", ""]
+            lines += [f"- {item}" for item in self.advisories]
             lines.append("")
 
         lines += ["## Artifacts", ""]
