@@ -14,6 +14,7 @@ build/
 audit-*.json
 audit-*.md
 settings-diff-*.md
+compliance.md
 
 # Logo-exploration output: 1,569 files / 6.7 MB, every direction × repository ×
 # size × theme, all derived from `identity/directions.py` by `export_all()`.
@@ -21,4 +22,3 @@ settings-diff-*.md
 # reports this as "not exported in this checkout" when absent, so its absence is
 # stated rather than mistaken for a pass.
 identity/out/
-
