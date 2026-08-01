@@ -421,7 +421,13 @@ class TestPullRequestChecks:
             if call.path.endswith("/runs/2/jobs"):
                 return True, {"jobs": [{"name": "quality (ubuntu-latest, Python 3.12)"}]}
             if call.path.endswith("/runs/3/jobs"):
-                return True, {"jobs": [{"name": "docs-links"}, {"name": ""}]}
+                return True, {
+                    "jobs": [
+                        {"name": "docs-links", "conclusion": "success"},
+                        {"name": "scheduled-scale", "conclusion": "skipped"},
+                        {"name": ""},
+                    ]
+                }
             return False, {}
 
     def test_it_reads_the_expanded_job_names(self) -> None:
@@ -429,6 +435,11 @@ class TestPullRequestChecks:
 
         # Matrix-expanded, because GitHub expanded them — not reimplemented here.
         assert names == ("docs-links", "quality (ubuntu-latest, Python 3.12)")
+
+    def test_conditionally_skipped_jobs_are_never_made_required(self) -> None:
+        names = pull_request_checks("demo", "fileworks", self.Runs())
+
+        assert "scheduled-scale" not in names
 
     def test_only_the_newest_run_of_each_workflow_is_sampled(self) -> None:
         client = self.Runs()
