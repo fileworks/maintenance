@@ -357,6 +357,12 @@ def pull_request_checks(repository: str, owner: str, client: Client) -> tuple[st
         if not ok:
             continue
         for job in jobs.get("jobs") or []:
+            # A conditionally skipped job appears in the run payload, but it
+            # does not report a successful check that branch protection can
+            # require. Treating scheduled scale tiers as required contexts
+            # would leave every ordinary pull request waiting forever.
+            if job.get("conclusion") == "skipped":
+                continue
             name = str(job.get("name", "")).strip()
             if name:
                 names.add(name)
