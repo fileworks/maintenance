@@ -1,7 +1,7 @@
 """The whole audit in one pass, and the compliance matrix it produces.
 
 Everything the other modules check, run together and reported once: files,
-documentation, gate alignment, Renovate configuration, release channels,
+documentation, gate alignment, dependency automation, release channels,
 formulas, and the identity assets. Remote settings are included only when an
 authenticated session supplies them, and are reported `unverifiable` otherwise
 — never assumed.
@@ -12,7 +12,6 @@ statement somebody can reproduce rather than a claim.
 
 from __future__ import annotations
 
-import json
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -231,20 +230,26 @@ def run(
     )
     report.gate_matrix = alignment_matrix(gate_reports)
 
-    renovate = []
+    dependency_automation = []
     for repo in repos:
-        config = repo.path / "renovate.json"
+        config = repo.path / ".github" / "dependabot.yml"
         if not config.is_file():
-            renovate.append(f"{repo.name}: no renovate.json")
+            dependency_automation.append(f"{repo.name}: no .github/dependabot.yml")
             continue
-        try:
-            payload = json.loads(config.read_text(encoding="utf-8"))
-        except json.JSONDecodeError as exc:
-            renovate.append(f"{repo.name}: renovate.json is not valid JSON ({exc})")
-            continue
-        if "packageRules" not in payload and "extends" not in payload:
-            renovate.append(f"{repo.name}: renovate.json carries no policy")
-    report.sections.append(AuditSection("Renovate", renovate, checked=on_disk, note=absent_note))
+        source = config.read_text(encoding="utf-8")
+        if "version: 2" not in source or "package-ecosystem:" not in source:
+            dependency_automation.append(f"{repo.name}: dependabot.yml carries no update policy")
+        workflow = repo.path / ".github" / "workflows" / "dependabot-automerge.yml"
+        if not workflow.is_file():
+            dependency_automation.append(f"{repo.name}: no protected auto-merge workflow")
+    report.sections.append(
+        AuditSection(
+            "Dependency automation",
+            dependency_automation,
+            checked=on_disk,
+            note=absent_note,
+        )
+    )
 
     metadata = [
         f"{repo.name}: {issue.field} — {issue.detail}"

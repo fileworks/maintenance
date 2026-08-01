@@ -27,7 +27,7 @@ production settings by accident.
 |---|---|
 | `policy.py` | The desired-state manifest: repository classes, required files, audited settings, and the exception schema. Plus the evaluator. |
 | `gates.py` | Stable gate names and the class × gate matrix. Renaming a gate silently unprotects a branch, so the names live here once. |
-| `renovate.py` | The shared Renovate policy, the per-repository generator, and the automerge allowlist. |
+| `dependabot.py` | The GitHub-native dependency policy, per-repository generator, and protected auto-merge workflow. |
 | `ledger.py` | The canonical machine-readable release ledger. |
 | `docs.py` | README information architecture, install-command checks, version-drift checks against the ledger, and link checks. |
 | `deployments.py` | Canonical GitHub Release versus Deployment environments and workflow checks. |
@@ -46,20 +46,21 @@ The last one carries the weight. A control that needs an authenticated `gh`
 session is reported `unverifiable`, never `compliant` — claiming compliance for
 something nobody checked is the failure a compliance tool exists to prevent.
 
-## Renovate
+## Dependency automation
 
-The shared policy lives in `renovate.py` and is generated into each repository.
-The projects are independently released and intentionally do not depend on a
-shared `.github` repository. Generated files therefore **inline** the policy.
-The generator remains the single maintenance source, so the copies cannot
-silently disagree.
+The shared policy lives in `dependabot.py` and generates `.github/dependabot.yml`
+plus a protected auto-merge workflow into each repository. The projects are
+independently released and intentionally do not depend on a shared `.github`
+repository. GitHub starts Dependabot from the checked-in configuration, so this
+has no separately installed App, service account, or repository secret to
+maintain.
 
-Every managed update class — including major, `0.x`, lockfile, digest,
-publisher, toolchain, codec, installer, and vulnerability updates — is eligible
-for protected-branch automerge only after every applicable required check
-reports a fresh explicit success. High-impact updates remain visibly labelled;
-they do not bypass or weaken the pipeline. Security advisories bypass the weekly
-schedule, not the protected checks.
+Every update class — including major, `0.x`, lockfile, digest, publisher,
+toolchain, codec, installer, and vulnerability updates — enters GitHub
+auto-merge. It merges only after every applicable required check reports a fresh
+success. Compatible minor and patch updates are grouped by ecosystem, normal
+updates observe a three-day cooldown and weekly schedule, and security updates
+bypass that delay without bypassing protected checks.
 
 ## Gate alignment
 
@@ -121,11 +122,10 @@ The audit checks that what is on display is still the family that was approved.
 ```console
 python - <<'EOF'
 from pathlib import Path
-from maintenance.renovate import repo_configs, write_preset, write_repo_config
+from maintenance.dependabot import repo_configs, write_repo_config
 
-write_preset(Path("maintenance/renovate"))
-for config in repo_configs("github>fileworks/.github//renovate/fileworks-base"):
-    write_repo_config(config, Path(config.name), inline=True)
+for config in repo_configs():
+    write_repo_config(config, Path(config.name))
 EOF
 ```
 

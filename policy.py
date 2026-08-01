@@ -138,10 +138,10 @@ def file_controls() -> tuple[FileControl, ...]:
             rationale="Review routing is explicit rather than implied.",
         ),
         FileControl(
-            "renovate",
-            "renovate.json",
-            must_contain=("extends",),
-            rationale="Dependency updates are automated from a shared preset.",
+            "dependabot",
+            ".github/dependabot.yml",
+            must_contain=("package-ecosystem", "schedule"),
+            rationale="GitHub-native version updates run without an external App or token.",
         ),
         FileControl(
             "quality_workflow",

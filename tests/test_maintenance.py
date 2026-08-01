@@ -11,6 +11,19 @@ from pathlib import Path
 
 import pytest
 
+from maintenance.dependabot import (
+    AUTOMERGE_WORKFLOW,
+    AutomationMetrics,
+    Ecosystem,
+    MetricsBaseline,
+    RepoDependabot,
+    automerge_allowed,
+    complete_pipeline,
+    metrics_markdown,
+    render_config,
+    repo_configs,
+    write_repo_config,
+)
 from maintenance.docs import (
     check_install_commands,
     check_links,
@@ -33,17 +46,6 @@ from maintenance.policy import (
     load_exceptions,
     repositories,
     setting_controls,
-)
-from maintenance.renovate import (
-    AutomationMetrics,
-    MetricsBaseline,
-    automerge_allowed,
-    base_preset,
-    complete_pipeline,
-    metrics_markdown,
-    repo_configs,
-    write_preset,
-    write_repo_config,
 )
 from maintenance.workflows import (
     CARGO_AUDIT_VERSION,
@@ -271,21 +273,21 @@ class TestGates:
         }
 
 
-class TestRenovate:
+class TestDependabot:
     def test_every_managed_update_class_is_eligible(self) -> None:
-        assert automerge_allowed("ruff", "patch") is True
-        assert automerge_allowed("semantic-release", "patch") is True
-        assert automerge_allowed("tauri-cli", "minor") is True
+        assert automerge_allowed("patch") is True
+        assert automerge_allowed("security") is True
+        assert automerge_allowed("digest") is True
 
     def test_majors_are_eligible_only_through_the_same_gate(self) -> None:
-        assert automerge_allowed("ruff", "major") is True
+        assert automerge_allowed("major") is True
 
-    def test_security_updates_use_protected_branch_automerge(self) -> None:
-        preset = base_preset()
-
-        assert preset["vulnerabilityAlerts"]["automerge"] is True
-        assert preset["vulnerabilityAlerts"]["platformAutomerge"] is True
-        assert preset["vulnerabilityAlerts"]["schedule"] == ["at any time"]
+    def test_all_updates_use_protected_branch_automerge(self) -> None:
+        assert "gh pr merge --auto --squash" in AUTOMERGE_WORKFLOW
+        assert "dependabot[bot]" in AUTOMERGE_WORKFLOW
+        assert "pull_request:" in AUTOMERGE_WORKFLOW
+        assert "permissions:\n  contents: read\n  pull-requests: read" in AUTOMERGE_WORKFLOW
+        assert "    permissions:\n      contents: write" in AUTOMERGE_WORKFLOW
 
     @pytest.mark.parametrize(
         "state",
@@ -304,27 +306,41 @@ class TestRenovate:
         )
 
     def test_a_stability_age_is_required(self) -> None:
-        assert base_preset()["minimumReleaseAge"]
+        config = repo_configs()[0].config()
+        assert all(update["cooldown"]["default-days"] for update in config["updates"])
 
-    def test_repo_configs_are_thin_extensions(self) -> None:
-        configs = repo_configs("github>fileworks/.github//renovate/fileworks-base")
+    def test_every_repository_is_covered(self) -> None:
+        assert {config.name for config in repo_configs()} == {
+            "media-sorter",
+            "immich-export",
+            "paperless-export",
+            "unpacksort",
+            "homebrew-tap",
+            "maintenance",
+        }
 
-        for config in configs:
-            payload = config.config()
-            assert payload["extends"] == ["github>fileworks/.github//renovate/fileworks-base"]
-            assert "schedule" not in payload  # the preset owns the schedule
+    def test_media_sorter_covers_every_manifest_location(self) -> None:
+        media = next(config for config in repo_configs() if config.name == "media-sorter")
+        coverage = {(item.name, item.directories) for item in media.ecosystems}
 
-    def test_the_tap_does_not_let_renovate_touch_formulas(self) -> None:
-        tap = next(config for config in repo_configs("preset") if config.name == "homebrew-tap")
+        assert ("uv", ("/backend",)) in coverage
+        assert ("npm", ("/", "/frontend")) in coverage
+        assert ("cargo", ("/frontend/src-tauri",)) in coverage
+        assert ("github-actions", ("/",)) in coverage
 
-        assert tap.config()["enabledManagers"] == ["github-actions"]
+    def test_the_tap_only_updates_actions(self) -> None:
+        tap = next(config for config in repo_configs() if config.name == "homebrew-tap")
+        assert tap.ecosystems == (Ecosystem("github-actions", ("/",)),)
 
-    def test_writing_produces_valid_json(self, tmp_path: Path) -> None:
-        preset = write_preset(tmp_path / "renovate")
-        config = write_repo_config(repo_configs("preset")[0], tmp_path)
+    def test_writing_produces_config_and_workflow(self, tmp_path: Path) -> None:
+        config, workflow = write_repo_config(
+            RepoDependabot("demo", (Ecosystem("uv", ("/",)),)),
+            tmp_path,
+        )
 
-        assert json.loads(preset.read_text(encoding="utf-8"))["extends"]
-        assert json.loads(config.read_text(encoding="utf-8"))["extends"] == ["preset"]
+        assert 'package-ecosystem: "uv"' in config.read_text(encoding="utf-8")
+        assert workflow.read_text(encoding="utf-8") == AUTOMERGE_WORKFLOW
+        assert render_config(repo_configs()[0]).endswith("\n")
 
     def test_metrics_recommend_nothing_before_a_cycle_has_run(self) -> None:
         assert "nothing to tune" in AutomationMetrics().recommendation()
@@ -332,7 +348,7 @@ class TestRenovate:
     def test_metrics_call_out_more_failures_than_merges(self) -> None:
         metrics = AutomationMetrics(opened=10, automerged=2, failed=5)
 
-        assert "tighten the allowlist" in metrics.recommendation()
+        assert "inspect failures" in metrics.recommendation()
         assert "20%" in metrics.summary()
 
 

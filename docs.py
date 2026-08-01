@@ -49,7 +49,7 @@ SECTIONS: dict[RepoClass, tuple[str, ...]] = {
         "Overview",
         "Usage",
         "Policy",
-        "Renovate",
+        "Dependency automation",
         "Gate alignment",
         "Development",
         "Security",
