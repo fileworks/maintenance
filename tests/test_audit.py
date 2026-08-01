@@ -42,6 +42,7 @@ class TestRun:
         assert {
             "Repository files",
             "Documentation",
+            "Release deployments",
             "Quality gates",
             "Formulas",
         } <= names

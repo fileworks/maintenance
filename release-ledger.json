@@ -1,21 +1,21 @@
 {
   "ledger_version": "1",
-  "generated_at": "2026-08-01T12:52:23.823593+00:00",
+  "generated_at": "2026-08-01T13:48:14+00:00",
   "products": [
     {
       "name": "media-sorter",
       "repository": "media-sorter",
       "owner": "fileworks",
-      "released_version": "1.0.6",
+      "released_version": "1.2.2",
       "channels_disagree": false,
       "channels": [
         {
           "channel": "github_release",
           "identifier": "fileworks/media-sorter",
-          "version": "1.0.6",
+          "version": "1.2.2",
           "state": "verified",
-          "verified_at": "2026-08-01T12:52:23.818086+00:00",
-          "detail": "latest public GitHub release v1.0.6, published 2026-07-23"
+          "verified_at": "2026-08-01T13:48:14+00:00",
+          "detail": "GitHub release v1.2.2 published 2026-08-01 after all automated source, native, package, checksum, startup, and signing-state gates passed"
         },
         {
           "channel": "homebrew",
