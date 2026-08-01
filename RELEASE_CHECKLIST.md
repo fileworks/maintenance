@@ -16,7 +16,10 @@ SHA-256 must match the published checksum.
 - [ ] Use a host or VM without a development checkout, Python virtual
   environment, Node.js dev server, or previously running MediaSorter backend.
 - [ ] Record the release version, operating-system version and architecture,
-  observer, and date.
+      observer, and date.
+- [ ] Record the expected exporter/UnpackSort versions from
+      `maintenance/release-ledger.json`; do not infer them from an old local
+      installation.
 - [ ] Download only from the official GitHub Release or PyPI.
 - [ ] Compare each downloaded file's SHA-256 with `SHA256SUMS`.
   On Windows use `Get-FileHash <file> -Algorithm SHA256`; on macOS use
@@ -48,8 +51,11 @@ SHA-256 must match the published checksum.
 - [ ] Give the portable UnpackSort executable a disposable source directory
   containing one small ZIP or TAR archive. Confirm it extracts the expected
   bytes and writes `manifest.jsonl` and `report.txt` in the destination.
-- [ ] In a fresh PowerShell session run
-  `py -m pip install --upgrade immich-export paperless-export unpacksort`.
+- [ ] With a supported Python installed, run `py -m pip install --user pipx`
+      and `py -m pipx ensurepath`, then open a fresh PowerShell session.
+- [ ] Run `pipx install immich-export`, `pipx install paperless-export`, and
+      `pipx install unpacksort`. Use `pipx upgrade PACKAGE` only when explicitly
+      testing an existing isolated installation.
 - [ ] Run `immich-export --version`, `paperless-export --version`, and
   `unpacksort --version`; confirm each matches its published release.
 - [ ] Run each tool's `--help`, then one non-destructive dry run or small
@@ -73,8 +79,11 @@ SHA-256 must match the published checksum.
   and history, and does not leave duplicate backend processes.
 - [ ] Install over the previous public version and repeat launch and one small
   job. Confirm settings are preserved.
-- [ ] Run `brew update && brew upgrade immich-export paperless-export unpacksort`
-  (or `brew install` for tools not already present).
+- [ ] On a clean Homebrew host run `brew update`, then install
+      `fileworks/tap/immich-export`, `fileworks/tap/paperless-export`, and
+      `fileworks/tap/unpacksort`.
+- [ ] For an existing installation, run `brew upgrade` for those same three
+      fully qualified formula names.
 - [ ] Run `immich-export --version`, `paperless-export --version`, and
   `unpacksort --version`; confirm each matches its published release.
 - [ ] Run each tool's `--help`, then one non-destructive dry run or small
