@@ -18,13 +18,15 @@ SHA-256 must match the published checksum.
 - [ ] Record the release version, operating-system version and architecture,
   observer, and date.
 - [ ] Download only from the official GitHub Release or PyPI.
-- [ ] Compare each downloaded file's SHA-256 with `SHA256SUMS.txt`.
+- [ ] Compare each downloaded file's SHA-256 with `SHA256SUMS`.
   On Windows use `Get-FileHash <file> -Algorithm SHA256`; on macOS use
   `shasum -a 256 <file>`.
 
 ## Windows
 
-- [ ] Install the MediaSorter `.msi` from the GitHub Release. Confirm the
+- [ ] Download the MediaSorter `.msi`, `-setup.exe`, and portable `.zip` from
+  the same GitHub Release. Confirm all three appear in `SHA256SUMS`.
+- [ ] From a clean VM snapshot, install the `.msi`. Confirm the
   unsigned-publisher warning names the downloaded file; do not bypass a digest
   mismatch.
 - [ ] Launch from the Start menu. Confirm the compact orange MediaSorter icon,
@@ -34,21 +36,33 @@ SHA-256 must match the published checksum.
 - [ ] Close and reopen twice. Confirm the app starts once, preserves settings
   and history, and does not leave duplicate backend processes.
 - [ ] Install the new `.msi` over the previous public version and repeat launch
-  and one small job. Confirm settings are preserved.
+  and one small job. Confirm settings are preserved, then uninstall it.
+- [ ] Restore the clean snapshot and repeat the launch, small-job, upgrade, and
+  uninstall checks with the NSIS `-setup.exe`.
+- [ ] Extract the portable `.zip` without installing it. Launch its executable,
+  complete one small job, close/reopen twice, and confirm no files were written
+  beside the executable except documented portable state.
+- [ ] Download the UnpackSort `-windows-x64.zip` from its official GitHub
+  Release, confirm it appears in `SHA256SUMS`, and extract it without installing.
+  Run `unpacksort.exe --version` and `unpacksort.exe --help`.
+- [ ] Give the portable UnpackSort executable a disposable source directory
+  containing one small ZIP or TAR archive. Confirm it extracts the expected
+  bytes and writes `manifest.jsonl` and `report.txt` in the destination.
 - [ ] In a fresh PowerShell session run
   `py -m pip install --upgrade immich-export paperless-export unpacksort`.
 - [ ] Run `immich-export --version`, `paperless-export --version`, and
   `unpacksort --version`; confirm each matches its published release.
 - [ ] Run each tool's `--help`, then one non-destructive dry run or small
   disposable-input operation. Confirm readable progress and a zero exit code.
-- [ ] Uninstall MediaSorter from Windows Settings. Confirm its Start-menu entry
-  is removed and no app process remains.
+- [ ] Confirm each installer removes its Start-menu entry and no app process
+  remains after uninstall; confirm deleting the portable directory removes that
+  copy without affecting user data.
 
 ## macOS
 
-- [ ] On the machine's native architecture, install the matching MediaSorter
-  `.dmg`. Confirm the expected unidentified-developer warning; do not bypass a
-  digest mismatch.
+- [ ] On the machine's native architecture, download the matching MediaSorter
+  `.dmg` and confirm it appears in `SHA256SUMS`. Confirm the expected
+  unidentified-developer warning; do not bypass a digest mismatch.
 - [ ] Move MediaSorter to Applications and launch it using Finder's **Open**
   confirmation for an unsigned app.
 - [ ] Confirm the compact orange MediaSorter icon, readable compact layout, and

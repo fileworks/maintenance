@@ -1,6 +1,6 @@
 {
   "ledger_version": "1",
-  "generated_at": "2026-08-01T00:00:00+00:00",
+  "generated_at": "2026-08-01T12:52:23.823593+00:00",
   "products": [
     {
       "name": "media-sorter",
@@ -14,8 +14,8 @@
           "identifier": "fileworks/media-sorter",
           "version": "1.0.6",
           "state": "verified",
-          "verified_at": "2026-08-01T00:00:00+00:00",
-          "detail": "GitHub latest release API returned v1.0.6 (published 2026-07-23)"
+          "verified_at": "2026-08-01T12:52:23.818086+00:00",
+          "detail": "latest public GitHub release v1.0.6, published 2026-07-23"
         },
         {
           "channel": "homebrew",
@@ -47,32 +47,32 @@
       "name": "immich-export",
       "repository": "immich-export",
       "owner": "fileworks",
-      "released_version": "0.1.1",
+      "released_version": "0.2.0",
       "channels_disagree": false,
       "channels": [
         {
           "channel": "github_release",
           "identifier": "fileworks/immich-export",
-          "version": "0.1.1",
+          "version": "0.2.0",
           "state": "verified",
-          "verified_at": "2026-08-01T00:00:00+00:00",
-          "detail": "GitHub latest release API returned v0.1.1 (published 2026-07-30)"
+          "verified_at": "2026-08-01T12:52:23.818086+00:00",
+          "detail": "GitHub release v0.2.0, published 2026-08-01"
         },
         {
           "channel": "homebrew",
           "identifier": "fileworks/tap/immich-export",
-          "version": "0.1.1",
+          "version": "0.2.0",
           "state": "verified",
-          "verified_at": "2026-08-01T00:00:00+00:00",
-          "detail": "Formula source URL pins immich_export-0.1.1"
+          "verified_at": "2026-08-01T12:52:23.818086+00:00",
+          "detail": "tap formula pins immich_export-0.2.0 with audited locked resources"
         },
         {
           "channel": "pypi",
           "identifier": "immich-export",
-          "version": "0.1.1",
+          "version": "0.2.0",
           "state": "verified",
-          "verified_at": "2026-08-01T00:00:00+00:00",
-          "detail": "PyPI JSON API returned 0.1.1"
+          "verified_at": "2026-08-01T12:52:23.818086+00:00",
+          "detail": "PyPI JSON API returned 0.2.0"
         },
         {
           "channel": "winget",
@@ -88,32 +88,32 @@
       "name": "paperless-export",
       "repository": "paperless-export",
       "owner": "fileworks",
-      "released_version": "1.1.0",
+      "released_version": "1.2.0",
       "channels_disagree": false,
       "channels": [
         {
           "channel": "github_release",
           "identifier": "fileworks/paperless-export",
-          "version": "1.1.0",
+          "version": "1.2.0",
           "state": "verified",
-          "verified_at": "2026-08-01T00:00:00+00:00",
-          "detail": "GitHub latest release API returned v1.1.0 (published 2026-07-30)"
+          "verified_at": "2026-08-01T12:52:23.818086+00:00",
+          "detail": "GitHub release v1.2.0, published 2026-08-01"
         },
         {
           "channel": "homebrew",
           "identifier": "fileworks/tap/paperless-export",
-          "version": "1.1.0",
+          "version": "1.2.0",
           "state": "verified",
-          "verified_at": "2026-08-01T00:00:00+00:00",
-          "detail": "Formula source URL pins paperless_export-1.1.0"
+          "verified_at": "2026-08-01T12:52:23.818086+00:00",
+          "detail": "tap formula pins paperless_export-1.2.0 with audited locked resources"
         },
         {
           "channel": "pypi",
           "identifier": "paperless-export",
-          "version": "1.1.0",
+          "version": "1.2.0",
           "state": "verified",
-          "verified_at": "2026-08-01T00:00:00+00:00",
-          "detail": "PyPI JSON API returned 1.1.0"
+          "verified_at": "2026-08-01T12:52:23.818086+00:00",
+          "detail": "PyPI JSON API returned 1.2.0"
         },
         {
           "channel": "winget",
@@ -129,40 +129,40 @@
       "name": "unpacksort",
       "repository": "unpacksort",
       "owner": "fileworks",
-      "released_version": null,
+      "released_version": "1.1.0",
       "channels_disagree": false,
       "channels": [
         {
           "channel": "github_release",
           "identifier": "fileworks/unpacksort",
-          "version": null,
-          "state": "unverified",
-          "verified_at": "2026-08-01T00:00:00+00:00",
-          "detail": "GitHub latest-release API returned 404; publication is waiting on channel setup"
+          "version": "1.1.0",
+          "state": "verified",
+          "verified_at": "2026-08-01T12:52:23.818086+00:00",
+          "detail": "GitHub release v1.1.0 assets, checksums, types, layout, and timestamps reverified"
         },
         {
           "channel": "homebrew",
           "identifier": "fileworks/tap/unpacksort",
-          "version": null,
-          "state": "unverified",
-          "verified_at": "2026-08-01T00:00:00+00:00",
-          "detail": "No unpacksort formula exists; publication is waiting on channel setup"
+          "version": "1.1.0",
+          "state": "verified",
+          "verified_at": "2026-08-01T12:52:23.818086+00:00",
+          "detail": "tap formula passed Linux/macOS audit, macOS source install, extraction, and manifest test"
         },
         {
           "channel": "pypi",
           "identifier": "unpacksort",
-          "version": null,
-          "state": "unverified",
-          "verified_at": "2026-08-01T00:00:00+00:00",
-          "detail": "PyPI project was not observable; publication is waiting on channel setup"
+          "version": "1.1.0",
+          "state": "verified",
+          "verified_at": "2026-08-01T12:52:23.818086+00:00",
+          "detail": "PyPI JSON API returned 1.1.0; wheel and sdist attestations verified"
         },
         {
           "channel": "winget",
           "identifier": "fileworks.unpacksort",
           "version": null,
           "state": "unverified",
-          "verified_at": "2026-08-01T00:00:00+00:00",
-          "detail": "WinGet identity remains unreserved"
+          "verified_at": "2026-08-01T12:52:23.818086+00:00",
+          "detail": "fileworks.unpacksort initial catalog manifest is not yet accepted"
         }
       ]
     },
@@ -186,8 +186,8 @@
           "identifier": "fileworks/tap",
           "version": "unversioned",
           "state": "verified",
-          "verified_at": "2026-08-01T00:00:00+00:00",
-          "detail": "the tap itself carries no version"
+          "verified_at": "2026-08-01T12:52:23.818086+00:00",
+          "detail": "the live tap is unversioned; all three formulas are audited"
         },
         {
           "channel": "pypi",
