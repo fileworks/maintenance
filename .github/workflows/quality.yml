@@ -123,3 +123,19 @@ jobs:
           for problem in problems:
               print(problem)
           sys.exit(1 if problems else 0)
+
+  dependency-audit:
+    name: dependency-audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: maintenance
+      - uses: astral-sh/setup-uv@v9.0.0
+      - name: Audit the locked governance environment
+        working-directory: maintenance
+        run: |
+          uv export --locked --all-groups --no-emit-project \
+            --format requirements-txt --output-file dependency-audit-requirements.txt
+          uvx --from pip-audit==2.9.0 pip-audit \
+            --requirement dependency-audit-requirements.txt --strict

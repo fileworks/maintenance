@@ -1,6 +1,6 @@
 {
   "ledger_version": "1",
-  "generated_at": "2026-07-28T06:37:30.058832+00:00",
+  "generated_at": "2026-08-01T00:00:00+00:00",
   "products": [
     {
       "name": "media-sorter",
@@ -14,8 +14,8 @@
           "identifier": "fileworks/media-sorter",
           "version": "1.0.6",
           "state": "verified",
-          "verified_at": "2026-07-26T00:00:00+00:00",
-          "detail": "verified against the channel on 2026-07-26"
+          "verified_at": "2026-08-01T00:00:00+00:00",
+          "detail": "GitHub latest release API returned v1.0.6 (published 2026-07-23)"
         },
         {
           "channel": "homebrew",
@@ -47,32 +47,32 @@
       "name": "immich-export",
       "repository": "immich-export",
       "owner": "fileworks",
-      "released_version": "0.0.4",
+      "released_version": "0.1.1",
       "channels_disagree": false,
       "channels": [
         {
           "channel": "github_release",
           "identifier": "fileworks/immich-export",
-          "version": "0.0.4",
+          "version": "0.1.1",
           "state": "verified",
-          "verified_at": "2026-07-26T00:00:00+00:00",
-          "detail": "verified against the channel on 2026-07-26"
+          "verified_at": "2026-08-01T00:00:00+00:00",
+          "detail": "GitHub latest release API returned v0.1.1 (published 2026-07-30)"
         },
         {
           "channel": "homebrew",
           "identifier": "fileworks/tap/immich-export",
-          "version": "0.0.4",
+          "version": "0.1.1",
           "state": "verified",
-          "verified_at": "2026-07-26T00:00:00+00:00",
-          "detail": "verified against the channel on 2026-07-26"
+          "verified_at": "2026-08-01T00:00:00+00:00",
+          "detail": "Formula source URL pins immich_export-0.1.1"
         },
         {
           "channel": "pypi",
           "identifier": "immich-export",
-          "version": "0.0.4",
+          "version": "0.1.1",
           "state": "verified",
-          "verified_at": "2026-07-26T00:00:00+00:00",
-          "detail": "verified against the channel on 2026-07-26"
+          "verified_at": "2026-08-01T00:00:00+00:00",
+          "detail": "PyPI JSON API returned 0.1.1"
         },
         {
           "channel": "winget",
@@ -88,32 +88,32 @@
       "name": "paperless-export",
       "repository": "paperless-export",
       "owner": "fileworks",
-      "released_version": "1.0.0",
+      "released_version": "1.1.0",
       "channels_disagree": false,
       "channels": [
         {
           "channel": "github_release",
           "identifier": "fileworks/paperless-export",
-          "version": "1.0.0",
+          "version": "1.1.0",
           "state": "verified",
-          "verified_at": "2026-07-26T00:00:00+00:00",
-          "detail": "verified against the channel on 2026-07-26"
+          "verified_at": "2026-08-01T00:00:00+00:00",
+          "detail": "GitHub latest release API returned v1.1.0 (published 2026-07-30)"
         },
         {
           "channel": "homebrew",
           "identifier": "fileworks/tap/paperless-export",
-          "version": "1.0.0",
+          "version": "1.1.0",
           "state": "verified",
-          "verified_at": "2026-07-26T00:00:00+00:00",
-          "detail": "verified against the channel on 2026-07-26"
+          "verified_at": "2026-08-01T00:00:00+00:00",
+          "detail": "Formula source URL pins paperless_export-1.1.0"
         },
         {
           "channel": "pypi",
           "identifier": "paperless-export",
-          "version": "1.0.0",
+          "version": "1.1.0",
           "state": "verified",
-          "verified_at": "2026-07-26T00:00:00+00:00",
-          "detail": "verified against the channel on 2026-07-26"
+          "verified_at": "2026-08-01T00:00:00+00:00",
+          "detail": "PyPI JSON API returned 1.1.0"
         },
         {
           "channel": "winget",
@@ -137,32 +137,32 @@
           "identifier": "fileworks/unpacksort",
           "version": null,
           "state": "unverified",
-          "verified_at": "2026-07-28T06:37:30.060585+00:00",
-          "detail": "semantic-release staged 1.0.0; publication is waiting on channel setup"
+          "verified_at": "2026-08-01T00:00:00+00:00",
+          "detail": "GitHub latest-release API returned 404; publication is waiting on channel setup"
         },
         {
           "channel": "homebrew",
           "identifier": "fileworks/tap/unpacksort",
           "version": null,
           "state": "unverified",
-          "verified_at": "2026-07-28T06:37:30.060594+00:00",
-          "detail": "semantic-release staged 1.0.0; publication is waiting on channel setup"
+          "verified_at": "2026-08-01T00:00:00+00:00",
+          "detail": "No unpacksort formula exists; publication is waiting on channel setup"
         },
         {
           "channel": "pypi",
           "identifier": "unpacksort",
           "version": null,
           "state": "unverified",
-          "verified_at": "2026-07-28T06:37:30.060590+00:00",
-          "detail": "semantic-release staged 1.0.0; publication is waiting on channel setup"
+          "verified_at": "2026-08-01T00:00:00+00:00",
+          "detail": "PyPI project was not observable; publication is waiting on channel setup"
         },
         {
           "channel": "winget",
           "identifier": "fileworks.unpacksort",
           "version": null,
           "state": "unverified",
-          "verified_at": "2026-07-28T06:37:30.060598+00:00",
-          "detail": "semantic-release staged 1.0.0; publication is waiting on channel setup"
+          "verified_at": "2026-08-01T00:00:00+00:00",
+          "detail": "WinGet identity remains unreserved"
         }
       ]
     },
@@ -186,7 +186,7 @@
           "identifier": "fileworks/tap",
           "version": "unversioned",
           "state": "verified",
-          "verified_at": "2026-07-26T00:00:00+00:00",
+          "verified_at": "2026-08-01T00:00:00+00:00",
           "detail": "the tap itself carries no version"
         },
         {

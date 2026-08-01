@@ -5,7 +5,7 @@ requires?* — and answers it without changing anything. Reconciliation is a
 separate, explicitly authorized step; an evaluator that could also fix things
 would inevitably be run against production settings by accident.
 
-Every outcome is one of five, and the difference between the last two matters:
+Every outcome is one of six, and the difference between the last two matters:
 `missing` means the control is absent, while `unverifiable` means this run could
 not tell. Reporting "compliant" for something nobody checked is the failure mode
 a compliance tool exists to prevent.
@@ -20,7 +20,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Literal
 
-RepoClass = Literal["desktop_application", "python_cli", "homebrew_tap"]
+RepoClass = Literal["desktop_application", "python_cli", "homebrew_tap", "governance_tool"]
 Outcome = Literal["compliant", "missing", "mismatched", "excepted", "stale", "unverifiable"]
 POLICY_VERSION = "1"
 
@@ -42,6 +42,7 @@ class FileControl:
         "desktop_application",
         "python_cli",
         "homebrew_tap",
+        "governance_tool",
     )
     rationale: str = ""
 
@@ -57,6 +58,7 @@ class SettingControl:
         "desktop_application",
         "python_cli",
         "homebrew_tap",
+        "governance_tool",
     )
     rationale: str = ""
     #: Controls that must be observed green before this one may be applied.
@@ -156,7 +158,7 @@ def file_controls() -> tuple[FileControl, ...]:
         FileControl(
             "python_project",
             "pyproject.toml",
-            applies_to=("python_cli",),
+            applies_to=("python_cli", "governance_tool"),
             must_contain=("[project]", "requires-python"),
             rationale="Python packages declare their metadata in one place.",
         ),
@@ -207,7 +209,7 @@ def setting_controls() -> tuple[SettingControl, ...]:
 
 
 def repositories(root: Path) -> tuple[Repository, ...]:
-    """The five repositories this policy governs, as they sit in the workspace.
+    """Every in-scope Git repository, including this governance repository.
 
     The descriptions are the ones that go on the repository cards, so they say
     what the tool does rather than which organisation owns it — the owner is
@@ -244,6 +246,12 @@ def repositories(root: Path) -> tuple[Repository, ...]:
             "homebrew_tap",
             root / "homebrew-tap",
             "Homebrew tap for the fileworks command-line tools",
+        ),
+        Repository(
+            "maintenance",
+            "governance_tool",
+            root / "maintenance",
+            "Executable governance, release-evidence, and repository policy for fileworks",
         ),
     )
 

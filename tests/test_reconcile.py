@@ -58,6 +58,18 @@ class TestRedaction:
     def test_a_token_is_removed_wherever_it_appears(self) -> None:
         assert "ghp_" not in redact("failed for ghp_abcdefghijklmnopqrstuvwxyz012345")
 
+    def test_current_github_credential_shapes_are_removed(self) -> None:
+        for token in (
+            "github_pat_11AA0_example_abcdefghijklmnopqrstuvwxyz0123456789",
+            "ghs_abcdefghijklmnopqrstuvwxyz0123456789",
+            "ghu_abcdefghijklmnopqrstuvwxyz012345",
+            "gho_abcdefghijklmnopqrstuvwxyz012345",
+            "ghr_abcdefghijklmnopqrstuvwxyz012345",
+        ):
+            cleaned = redact(f"request failed for {token}")
+            assert token not in cleaned
+            assert "[REDACTED]" in cleaned
+
     def test_credential_shaped_keys_are_removed(self) -> None:
         cleaned = redact({"token": "abc", "Authorization": "Bearer x", "name": "fine"})
 
