@@ -23,6 +23,7 @@ import json
 import re
 import subprocess
 from collections.abc import Callable, Sequence
+from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
@@ -98,15 +99,15 @@ def gh_client(*, timeout: int = 30) -> Client:
     """
 
     def call(request: ApiCall) -> tuple[bool, dict[str, Any]]:
-        argv = ["gh", "api", "-X", request.method, request.path]
-        for key, value in request.body.items():
-            argv += [
-                "-f" if isinstance(value, str) else "-F",
-                f"{key}={_render(value)}",
-            ]
+        argv, standard_input = _gh_request(request)
         try:
             completed = subprocess.run(
-                argv, capture_output=True, text=True, timeout=timeout, check=False
+                argv,
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+                check=False,
+                input=standard_input,
             )
         except (OSError, subprocess.SubprocessError) as exc:
             return False, {"error": type(exc).__name__}
@@ -120,12 +121,18 @@ def gh_client(*, timeout: int = 30) -> Client:
     return call
 
 
-def _render(value: Any) -> str:
-    if isinstance(value, bool):
-        return "true" if value else "false"
-    if isinstance(value, (list, tuple)):
-        return ",".join(str(item) for item in value)
-    return str(value)
+def _gh_request(request: ApiCall) -> tuple[list[str], str | None]:
+    """Render a request without flattening JSON arrays or nested objects.
+
+    Passing lists through repeated ``gh api -F`` fields is ambiguous: a list of
+    status contexts became one comma-separated context, and nested branch
+    protection data could not be represented at all. ``--input -`` preserves
+    the request body exactly and keeps credentials out of command arguments.
+    """
+    argv = ["gh", "api", "-X", request.method, request.path]
+    if not request.body:
+        return argv, None
+    return [*argv, "--input", "-"], json.dumps(request.body)
 
 
 # --------------------------------------------------------------------------- #
@@ -403,12 +410,80 @@ _WRITERS: dict[str, Callable[[str, str, Any], ApiCall]] = {
         f"repos/{owner}/{repo}/actions/permissions/workflow",
         {"default_workflow_permissions": value},
     ),
-    "default_branch_protection": lambda owner, repo, value: ApiCall(
-        "PUT",
-        f"repos/{owner}/{repo}/branches/main/protection",
-        {"required_status_checks": value},
-    ),
 }
+
+
+def _required_checks_write(
+    owner: str,
+    repository: str,
+    contexts: Sequence[str],
+    client: Client,
+) -> tuple[ApiCall | None, str]:
+    """Choose the protection mechanism that currently owns ``main``.
+
+    Legacy branch protection and repository rulesets have different write
+    endpoints. Discovery immediately before the write avoids creating a second,
+    conflicting policy, and ruleset updates preserve every unrelated rule.
+    """
+    protection_path = f"repos/{owner}/{repository}/branches/main/protection"
+    legacy_ok, _legacy = client(ApiCall("GET", protection_path))
+    if legacy_ok:
+        return (
+            ApiCall(
+                "PATCH",
+                f"{protection_path}/required_status_checks",
+                {"strict": True, "contexts": list(contexts)},
+            ),
+            "",
+        )
+
+    ok, summaries = client(ApiCall("GET", f"repos/{owner}/{repository}/rulesets"))
+    if not ok or not isinstance(summaries, list):
+        return None, "neither legacy protection nor repository rulesets could be read"
+
+    candidates: list[dict[str, Any]] = []
+    for summary in summaries:
+        if not isinstance(summary, dict) or summary.get("enforcement") != "active":
+            continue
+        ok, ruleset = client(
+            ApiCall(
+                "GET",
+                f"repos/{owner}/{repository}/rulesets/{summary.get('id')}",
+            )
+        )
+        if not ok:
+            continue
+        matching_rules = [
+            rule
+            for rule in ruleset.get("rules") or []
+            if isinstance(rule, dict) and rule.get("type") == "required_status_checks"
+        ]
+        if len(matching_rules) == 1:
+            candidates.append(ruleset)
+
+    if len(candidates) != 1:
+        return (
+            None,
+            f"expected exactly one active required-status-check ruleset, found {len(candidates)}",
+        )
+
+    ruleset = candidates[0]
+    rules = deepcopy(ruleset.get("rules") or [])
+    target = next(
+        rule
+        for rule in rules
+        if isinstance(rule, dict) and rule.get("type") == "required_status_checks"
+    )
+    parameters = target.setdefault("parameters", {})
+    parameters["required_status_checks"] = [{"context": context} for context in contexts]
+    return (
+        ApiCall(
+            "PUT",
+            f"repos/{owner}/{repository}/rulesets/{ruleset.get('id')}",
+            {"rules": rules},
+        ),
+        "",
+    )
 
 
 @dataclass(frozen=True)
@@ -542,14 +617,19 @@ def apply(
             )
             continue
 
-        writer = _WRITERS.get(change.control_id)
-        if writer is None:
-            report.results.append(
-                Applied(change, "skipped", "no writer is defined for this control")
-            )
-            continue
-
-        call = writer(owner, change.repository, change.desired)
+        if change.control_id == "default_branch_protection":
+            call, error = _required_checks_write(owner, change.repository, change.desired, client)
+            if call is None:
+                report.results.append(Applied(change, "failed", error))
+                continue
+        else:
+            writer = _WRITERS.get(change.control_id)
+            if writer is None:
+                report.results.append(
+                    Applied(change, "skipped", "no writer is defined for this control")
+                )
+                continue
+            call = writer(owner, change.repository, change.desired)
         if dry_run:
             report.results.append(
                 Applied(
@@ -579,9 +659,19 @@ def apply(
 
         # Read back. A write that reports success but did not take is the
         # failure mode this whole module exists to catch.
-        seen_ok, seen = client(ApiCall("GET", f"repos/{owner}/{change.repository}"))
-        observed_after = seen.get(change.setting.split(".")[0]) if seen_ok else None
-        matched = seen_ok and _verified(change, seen)
+        observed_after: Any
+        if change.control_id == "default_branch_protection":
+            if "/rulesets/" in call.path:
+                seen_ok, seen = client(ApiCall("GET", call.path))
+                observed_after = sorted(_ruleset_required_checks(seen))
+            else:
+                seen_ok, seen = client(ApiCall("GET", call.path.rsplit("/", 1)[0]))
+                observed_after = sorted(_nested(seen, "required_status_checks", "contexts") or [])
+            matched = seen_ok and observed_after == sorted(change.desired)
+        else:
+            seen_ok, seen = client(ApiCall("GET", f"repos/{owner}/{change.repository}"))
+            observed_after = seen.get(change.setting.split(".")[0]) if seen_ok else None
+            matched = seen_ok and _verified(change, seen)
         report.results.append(
             Applied(
                 change,
@@ -600,6 +690,18 @@ def _verified(change: PlannedChange, payload: dict[str, Any]) -> bool:
     if key not in payload:
         return False
     return bool(payload[key] == change.desired)
+
+
+def _ruleset_required_checks(ruleset: dict[str, Any]) -> tuple[str, ...]:
+    contexts: set[str] = set()
+    for rule in ruleset.get("rules") or []:
+        if not isinstance(rule, dict) or rule.get("type") != "required_status_checks":
+            continue
+        for check in (rule.get("parameters") or {}).get("required_status_checks") or []:
+            context = str((check or {}).get("context", "")).strip()
+            if context:
+                contexts.add(context)
+    return tuple(sorted(contexts))
 
 
 # --------------------------------------------------------------------------- #

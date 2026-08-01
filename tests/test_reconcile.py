@@ -3,8 +3,10 @@ never believes its own writes without reading them back."""
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
+from maintenance import reconcile
 from maintenance.drift import PlannedChange
 from maintenance.policy import Repository, SettingControl
 from maintenance.reconcile import (
@@ -276,10 +278,115 @@ class TestApplying:
 
         assert "was false" in report.rollback_script()
 
+    def test_required_checks_use_the_narrow_subresource_and_verify_it(self) -> None:
+        class ProtectionClient(FakeClient):
+            def __init__(self) -> None:
+                super().__init__()
+                self.contexts = ["old"]
+
+            def __call__(self, call: ApiCall) -> tuple[bool, dict[str, Any]]:
+                self.calls.append(call)
+                if call.method == "PATCH":
+                    self.contexts = list(call.body["contexts"])
+                    return True, {"contexts": self.contexts}
+                if call.path.endswith("/branches/main/protection"):
+                    return True, {"required_status_checks": {"contexts": self.contexts}}
+                return True, {}
+
+        client = ProtectionClient()
+        change = self._change(
+            control_id="default_branch_protection",
+            setting="protection.main.required_status_checks",
+            current=["old"],
+            desired=["docs-links", "python"],
+        )
+
+        report = apply([change], owner="fileworks", client=client, dry_run=False)
+
+        assert report.results[0].outcome == "applied"
+        assert client.writes == [
+            ApiCall(
+                "PATCH",
+                "repos/fileworks/demo/branches/main/protection/required_status_checks",
+                {"strict": True, "contexts": ["docs-links", "python"]},
+            )
+        ]
+
+    def test_required_checks_update_the_existing_ruleset_without_losing_rules(
+        self,
+    ) -> None:
+        class RulesetClient(FakeClient):
+            def __init__(self) -> None:
+                super().__init__()
+                self.ruleset = {
+                    "id": 7,
+                    "enforcement": "active",
+                    "rules": [
+                        {"type": "deletion"},
+                        {
+                            "type": "required_status_checks",
+                            "parameters": {
+                                "strict_required_status_checks_policy": True,
+                                "required_status_checks": [{"context": "old"}],
+                            },
+                        },
+                    ],
+                }
+
+            def __call__(self, call: ApiCall) -> tuple[bool, dict[str, Any]]:
+                self.calls.append(call)
+                if call.path.endswith("/branches/main/protection"):
+                    return False, {"error": "Branch not protected"}
+                if call.path.endswith("/rulesets"):
+                    return True, [  # type: ignore[return-value]
+                        {"id": 7, "enforcement": "active"}
+                    ]
+                if call.method == "PUT":
+                    self.ruleset["rules"] = call.body["rules"]
+                if call.path.endswith("/rulesets/7"):
+                    return True, self.ruleset
+                return False, {}
+
+        client = RulesetClient()
+        change = self._change(
+            control_id="default_branch_protection",
+            setting="protection.main.required_status_checks",
+            current=["old"],
+            desired=["docs-links", "python"],
+        )
+
+        report = apply([change], owner="fileworks", client=client, dry_run=False)
+
+        assert report.results[0].outcome == "applied"
+        assert len(client.writes) == 1
+        write = client.writes[0]
+        assert write.method == "PUT"
+        assert write.path == "repos/fileworks/demo/rulesets/7"
+        assert write.body["rules"][0] == {"type": "deletion"}
+        assert write.body["rules"][1]["parameters"] == {
+            "strict_required_status_checks_policy": True,
+            "required_status_checks": [
+                {"context": "docs-links"},
+                {"context": "python"},
+            ],
+        }
+
+
+class TestGhRequest:
+    def test_json_arrays_are_preserved_in_standard_input(self) -> None:
+        arguments, standard_input = reconcile._gh_request(
+            ApiCall("PATCH", "repos/fileworks/demo", {"contexts": ["a", "b"]})
+        )
+
+        assert arguments[-2:] == ["--input", "-"]
+        assert standard_input is not None
+        assert json.loads(standard_input) == {"contexts": ["a", "b"]}
+
 
 class TestStagedRollout:
     def _change(self, control: str) -> PlannedChange:
-        return PlannedChange("demo", control, control, current=None, desired=True)
+        desired: object = ["test"] if control == "default_branch_protection" else True
+        return PlannedChange("demo", control, control, current=None, desired=desired)
 
     def test_the_waves_run_cheapest_and_most_reversible_first(self) -> None:
         assert STAGES[0][0] == "presentation"
