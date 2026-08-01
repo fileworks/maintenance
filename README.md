@@ -59,12 +59,14 @@ Every update class — including major, `0.x`, lockfile, digest, publisher,
 toolchain, codec, installer, and vulnerability updates — enters GitHub
 auto-merge. It merges only after every applicable required check reports a fresh
 success. Where the existing semantic-release credential is available, the
-workflow uses it to enable the merge because GitHub suppresses `push` workflows
-for merges performed by `GITHUB_TOKEN`; arbitrary pull requests cannot reach
-that guarded job. Repositories without the release credential fall back to
-`GITHUB_TOKEN`. Compatible minor and patch updates are grouped by ecosystem, normal
-updates observe a three-day cooldown and weekly schedule, and security updates
-bypass that delay without bypassing protected checks.
+scheduled base-branch workflow uses it to enable the merge because GitHub
+suppresses `push` workflows for merges performed by `GITHUB_TOKEN`. It never
+executes pull-request code and selects only pull requests authored by the
+Dependabot App, so the credential is not exposed to Dependabot-authored
+workflows. Repositories without the release credential fall back to
+`GITHUB_TOKEN`. Compatible minor and patch updates are grouped by ecosystem,
+normal updates observe a three-day cooldown and weekly schedule, and security
+updates bypass that delay without bypassing protected checks.
 
 ## Gate alignment
 

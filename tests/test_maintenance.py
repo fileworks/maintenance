@@ -284,8 +284,10 @@ class TestDependabot:
 
     def test_all_updates_use_protected_branch_automerge(self) -> None:
         assert "gh pr merge --auto --squash" in AUTOMERGE_WORKFLOW
-        assert "dependabot[bot]" in AUTOMERGE_WORKFLOW
-        assert "pull_request:" in AUTOMERGE_WORKFLOW
+        assert "--author app/dependabot" in AUTOMERGE_WORKFLOW
+        assert "schedule:" in AUTOMERGE_WORKFLOW
+        assert "workflow_dispatch:" in AUTOMERGE_WORKFLOW
+        assert "pull_request:" not in AUTOMERGE_WORKFLOW
         assert "permissions:\n  contents: read\n  pull-requests: read" in AUTOMERGE_WORKFLOW
         assert "    permissions:\n      contents: write" in AUTOMERGE_WORKFLOW
         assert "secrets.SEMANTIC_RELEASE_TOKEN || secrets.GITHUB_TOKEN" in AUTOMERGE_WORKFLOW
