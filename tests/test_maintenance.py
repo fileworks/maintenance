@@ -290,7 +290,8 @@ class TestDependabot:
         assert "pull_request:" not in AUTOMERGE_WORKFLOW
         assert "permissions:\n  contents: read\n  pull-requests: read" in AUTOMERGE_WORKFLOW
         assert "    permissions:\n      contents: write" in AUTOMERGE_WORKFLOW
-        assert "secrets.SEMANTIC_RELEASE_TOKEN || secrets.GITHUB_TOKEN" in AUTOMERGE_WORKFLOW
+        assert "GH_TOKEN: ${{ secrets.SEMANTIC_RELEASE_TOKEN }}" in AUTOMERGE_WORKFLOW
+        assert "secrets.GITHUB_TOKEN" not in AUTOMERGE_WORKFLOW
 
     @pytest.mark.parametrize(
         "state",

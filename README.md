@@ -52,8 +52,7 @@ The shared policy lives in `dependabot.py` and generates `.github/dependabot.yml
 plus a protected auto-merge workflow into each repository. The projects are
 independently released and intentionally do not depend on a shared `.github`
 repository. GitHub starts Dependabot from the checked-in configuration, so this
-has no separately installed App, service account, or repository secret to
-maintain.
+has no separately installed App or service account.
 
 Every update class — including major, `0.x`, lockfile, digest, publisher,
 toolchain, codec, installer, and vulnerability updates — enters GitHub
@@ -63,10 +62,12 @@ scheduled base-branch workflow uses it to enable the merge because GitHub
 suppresses `push` workflows for merges performed by `GITHUB_TOKEN`. It never
 executes pull-request code and selects only pull requests authored by the
 Dependabot App, so the credential is not exposed to Dependabot-authored
-workflows. Repositories without the release credential fall back to
-`GITHUB_TOKEN`. Compatible minor and patch updates are grouped by ecosystem,
-normal updates observe a three-day cooldown and weekly schedule, and security
-updates bypass that delay without bypassing protected checks.
+workflows. Every repository therefore carries the `SEMANTIC_RELEASE_TOKEN`
+Actions secret; the workflow fails closed if it is missing instead of merging
+without running downstream CI and release evaluation. Compatible minor and
+patch updates are grouped by ecosystem, normal updates observe a three-day
+cooldown and weekly schedule, and security updates bypass that delay without
+bypassing protected checks.
 
 ## Gate alignment
 
