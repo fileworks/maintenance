@@ -56,8 +56,9 @@ has no separately installed App or service account.
 
 Every update class — including major, `0.x`, lockfile, digest, publisher,
 toolchain, codec, installer, and vulnerability updates — enters GitHub
-auto-merge. It merges only after every applicable required check reports a fresh
-success. Where the existing semantic-release credential is available, the
+auto-merge unless it is an explicit coherent-platform migration hold. It merges
+only after every applicable required check reports a fresh success. Where the
+existing semantic-release credential is available, the
 scheduled base-branch workflow uses it to enable the merge because GitHub
 suppresses `push` workflows for merges performed by `GITHUB_TOKEN`. It never
 executes pull-request code and selects only pull requests authored by the
@@ -68,6 +69,13 @@ without running downstream CI and release evaluation. Compatible minor and
 patch updates are grouped by ecosystem, normal updates observe a three-day
 cooldown and weekly schedule, and security updates bypass that delay without
 bypassing protected checks.
+
+The only named version hold is MediaSorter’s Tauri 2 platform boundary. Tauri’s
+Rust runtime, build crate, JavaScript API, CLI, configuration schema, and
+capability model must move together; Dependabot therefore ignores isolated
+major updates for those four packages while continuing to update their current
+major line. This prevents an invalid partial migration such as `tauri-build` 2
+with the Tauri 1 runtime and configuration.
 
 ## Gate alignment
 

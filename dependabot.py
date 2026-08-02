@@ -76,6 +76,7 @@ class Ecosystem:
 
     name: str
     directories: tuple[str, ...]
+    major_version_holds: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -93,29 +94,36 @@ class RepoDependabot:
                 location = {"directory": ecosystem.directories[0]}
             else:
                 location = {"directories": list(ecosystem.directories)}
-            updates.append(
-                {
-                    "package-ecosystem": ecosystem.name,
-                    **location,
-                    "schedule": {
-                        "interval": "weekly",
-                        "day": "monday",
-                        "time": "05:00",
-                        "timezone": "Europe/Berlin",
-                    },
-                    "cooldown": {"default-days": DEFAULT_COOLDOWN_DAYS},
-                    "open-pull-requests-limit": 5,
-                    "rebase-strategy": "auto",
-                    "labels": ["dependencies"],
-                    "commit-message": {"prefix": "chore(deps)"},
-                    "groups": {
-                        f"{ecosystem.name}-compatible": {
-                            "patterns": ["*"],
-                            "update-types": ["minor", "patch"],
-                        }
-                    },
-                }
-            )
+            update: dict[str, Any] = {
+                "package-ecosystem": ecosystem.name,
+                **location,
+                "schedule": {
+                    "interval": "weekly",
+                    "day": "monday",
+                    "time": "05:00",
+                    "timezone": "Europe/Berlin",
+                },
+                "cooldown": {"default-days": DEFAULT_COOLDOWN_DAYS},
+                "open-pull-requests-limit": 5,
+                "rebase-strategy": "auto",
+                "labels": ["dependencies"],
+                "commit-message": {"prefix": "chore(deps)"},
+                "groups": {
+                    f"{ecosystem.name}-compatible": {
+                        "patterns": ["*"],
+                        "update-types": ["minor", "patch"],
+                    }
+                },
+            }
+            if ecosystem.major_version_holds:
+                update["ignore"] = [
+                    {
+                        "dependency-name": dependency,
+                        "update-types": ["version-update:semver-major"],
+                    }
+                    for dependency in ecosystem.major_version_holds
+                ]
+            updates.append(update)
         return {"version": 2, "updates": updates}
 
 
@@ -127,8 +135,16 @@ def repo_configs() -> tuple[RepoDependabot, ...]:
             "media-sorter",
             (
                 Ecosystem("uv", ("/backend",)),
-                Ecosystem("npm", ("/", "/frontend")),
-                Ecosystem("cargo", ("/frontend/src-tauri",)),
+                Ecosystem(
+                    "npm",
+                    ("/", "/frontend"),
+                    ("@tauri-apps/api", "@tauri-apps/cli"),
+                ),
+                Ecosystem(
+                    "cargo",
+                    ("/frontend/src-tauri",),
+                    ("tauri", "tauri-build"),
+                ),
                 Ecosystem("github-actions", ("/",)),
             ),
         ),
@@ -179,6 +195,16 @@ def render_config(repo: RepoDependabot) -> str:
             '        patterns: ["*"]',
             '        update-types: ["minor", "patch"]',
         ]
+        ignores = item.get("ignore", [])
+        assert isinstance(ignores, list)
+        if ignores:
+            lines.append("    ignore:")
+            for ignored in ignores:
+                assert isinstance(ignored, dict)
+                lines += [
+                    f"      - dependency-name: {_quote(str(ignored['dependency-name']))}",
+                    '        update-types: ["version-update:semver-major"]',
+                ]
     return "\n".join(lines) + "\n"
 
 

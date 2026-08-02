@@ -324,6 +324,14 @@ class TestDependabot:
             "maintenance",
         }
 
+    def test_tauri_major_is_held_as_one_coherent_platform_migration(self) -> None:
+        media = next(config for config in repo_configs() if config.name == "media-sorter")
+        rendered = render_config(media)
+
+        for dependency in ("tauri", "tauri-build", "@tauri-apps/api", "@tauri-apps/cli"):
+            assert f'dependency-name: "{dependency}"' in rendered
+        assert rendered.count('update-types: ["version-update:semver-major"]') == 4
+
     def test_media_sorter_covers_every_manifest_location(self) -> None:
         media = next(config for config in repo_configs() if config.name == "media-sorter")
         coverage = {(item.name, item.directories) for item in media.ecosystems}
