@@ -284,6 +284,7 @@ class TestDependabot:
 
     def test_all_updates_use_protected_branch_automerge(self) -> None:
         assert "gh pr merge --auto --squash" in AUTOMERGE_WORKFLOW
+        assert "gh pr list \\\n            --state open \\" in AUTOMERGE_WORKFLOW
         assert "--author app/dependabot" in AUTOMERGE_WORKFLOW
         assert "schedule:" in AUTOMERGE_WORKFLOW
         assert "workflow_dispatch:" in AUTOMERGE_WORKFLOW

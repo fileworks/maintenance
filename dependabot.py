@@ -50,11 +50,11 @@ jobs:
     steps:
       - name: Queue protected Dependabot squash merges
         run: |
-          gh pr list \
-            --state open \
-            --author app/dependabot \
-            --limit 100 \
-            --json url \
+          gh pr list \\
+            --state open \\
+            --author app/dependabot \\
+            --limit 100 \\
+            --json url \\
             --jq '.[].url' |
           while IFS= read -r pr_url; do
             gh pr merge --auto --squash "$pr_url"
