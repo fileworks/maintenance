@@ -22,6 +22,7 @@ from typing import Any
 from maintenance.docs import DocIssue
 from maintenance.gates import not_applicable
 from maintenance.policy import (
+    LEDGER_CHANNEL_CONTROL,
     Finding,
     PolicyReport,
     Repository,
@@ -77,12 +78,29 @@ class DriftReport:
             if finding.outcome in {"missing", "mismatched", "stale"}
         )
 
+    @property
+    def stale_ledger(self) -> tuple[Finding, ...]:
+        """Recorded versions the channel itself disagrees with.
+
+        Reported on their own rather than inside the general table because the
+        remedy is different in kind: nothing in a repository is wrong, the
+        record of what was published is. Every claim quoting that record — a
+        README's install line, the status table — is wrong with it.
+        """
+        return tuple(
+            finding
+            for finding in self.policy.findings
+            if finding.control_id == LEDGER_CHANNEL_CONTROL and finding.outcome == "stale"
+        )
+
     def summary(self) -> str:
         if self.clean:
             return "Every applicable control is satisfied."
         parts = []
         if self.blocking:
             parts.append(f"{len(self.blocking)} control(s) out of policy")
+        if self.stale_ledger:
+            parts.append(f"{len(self.stale_ledger)} recorded version(s) the channel contradicts")
         unverifiable = self.policy.by_outcome("unverifiable")
         if unverifiable:
             parts.append(f"{len(unverifiable)} unverifiable without authentication")
@@ -112,6 +130,21 @@ class DriftReport:
             ]
             lines += [f"- {state.describe()}" for state in drifted]
             lines.append("")
+        # Before the general table: a stale record makes every version claim
+        # downstream of it wrong, so it is the first thing to fix, not one row
+        # among twenty.
+        if self.stale_ledger:
+            lines += [
+                "## Recorded release state disagrees with the channel",
+                "",
+            ]
+            lines += [f"- {finding.detail}" for finding in self.stale_ledger]
+            lines += [
+                "",
+                "> Re-verify each channel and record the observation. Nothing here "
+                "amends the ledger on your behalf.",
+                "",
+            ]
         if self.blocking:
             lines += [
                 "## Out of policy",

@@ -284,13 +284,15 @@ class TestDependabot:
 
     def test_all_updates_use_protected_branch_automerge(self) -> None:
         assert "gh pr merge --auto --squash" in AUTOMERGE_WORKFLOW
+        assert "gh pr list \\\n            --state open \\" in AUTOMERGE_WORKFLOW
         assert "--author app/dependabot" in AUTOMERGE_WORKFLOW
         assert "schedule:" in AUTOMERGE_WORKFLOW
         assert "workflow_dispatch:" in AUTOMERGE_WORKFLOW
         assert "pull_request:" not in AUTOMERGE_WORKFLOW
         assert "permissions:\n  contents: read\n  pull-requests: read" in AUTOMERGE_WORKFLOW
         assert "    permissions:\n      contents: write" in AUTOMERGE_WORKFLOW
-        assert "secrets.SEMANTIC_RELEASE_TOKEN || secrets.GITHUB_TOKEN" in AUTOMERGE_WORKFLOW
+        assert "GH_TOKEN: ${{ secrets.SEMANTIC_RELEASE_TOKEN }}" in AUTOMERGE_WORKFLOW
+        assert "secrets.GITHUB_TOKEN" not in AUTOMERGE_WORKFLOW
 
     @pytest.mark.parametrize(
         "state",
@@ -321,6 +323,14 @@ class TestDependabot:
             "homebrew-tap",
             "maintenance",
         }
+
+    def test_tauri_major_is_held_as_one_coherent_platform_migration(self) -> None:
+        media = next(config for config in repo_configs() if config.name == "media-sorter")
+        rendered = render_config(media)
+
+        for dependency in ("tauri", "tauri-build", "@tauri-apps/api", "@tauri-apps/cli"):
+            assert f'dependency-name: "{dependency}"' in rendered
+        assert rendered.count('update-types: ["version-update:semver-major"]') == 4
 
     def test_media_sorter_covers_every_manifest_location(self) -> None:
         media = next(config for config in repo_configs() if config.name == "media-sorter")

@@ -3,10 +3,16 @@
     python -m maintenance.cli            # evaluate and print the report
     python -m maintenance.cli --json out.json
     python -m maintenance.cli --matrix   # the compliance table
+    python -m maintenance.cli --offline  # contact no publication channel
 
 It never writes to a repository and never touches a remote setting. Remote
 controls are reported `unverifiable` until an authenticated run supplies their
 observed values, which is a deliberately separate step.
+
+It does read the public publication channels, because a recorded version nobody
+re-checked is a claim rather than a fact. That read is comparison only: nothing
+here amends the ledger it audits. A channel it cannot reach is `unverifiable`,
+so an offline run degrades instead of certifying what it did not see.
 """
 
 from __future__ import annotations
@@ -16,10 +22,26 @@ import sys
 from collections.abc import Sequence
 from pathlib import Path
 
+from maintenance.channels import (
+    Readers,
+    compare_ledger_to_channels,
+    live_readers,
+    unreadable,
+)
+from maintenance.channels import findings as channel_findings
 from maintenance.docs import check_readme
 from maintenance.drift import DriftReport, PlannedChange, compliance_matrix, plan_settings
 from maintenance.ledger import ReleaseLedger, scaffold
-from maintenance.policy import Repository, evaluate, load_exceptions, repositories
+from maintenance.policy import (
+    LEDGER_CHANNEL_CONTROL,
+    Finding,
+    Repository,
+    evaluate,
+    evaluate_python_support,
+    load_exceptions,
+    release_controls,
+    repositories,
+)
 from maintenance.reconcile import gh_client, observe, pull_request_checks
 from maintenance.worktree import inspect as inspect_tree
 
@@ -47,7 +69,31 @@ def observe_settings(
     return observed
 
 
-def build_report(root: Path, *, authenticated: bool = False) -> DriftReport:
+def verify_channels(
+    repos: Sequence[Repository],
+    ledger: ReleaseLedger,
+    readers: Readers,
+) -> list[Finding]:
+    """Compare the recorded release state to the channels that serve it.
+
+    Applicability is per class, so the tap and this governance package are not
+    asked about a version they do not publish. Nothing here writes to the
+    ledger: detection and amendment stay separate acts.
+    """
+    applicable = {control.control_id: control.applies_to for control in release_controls()}.get(
+        LEDGER_CHANNEL_CONTROL, ()
+    )
+    classes = {repo.name: repo.repo_class for repo in repos if repo.repo_class in applicable}
+    comparisons = compare_ledger_to_channels(ledger, readers, products=tuple(classes))
+    return list(channel_findings(comparisons, classes))
+
+
+def build_report(
+    root: Path,
+    *,
+    authenticated: bool = False,
+    readers: Readers | None = None,
+) -> DriftReport:
     repos = repositories(root)
     ledger = ReleaseLedger.read(LEDGER_PATH) if LEDGER_PATH.is_file() else scaffold()
     observations = observe_settings(repos) if authenticated else None
@@ -57,6 +103,11 @@ def build_report(root: Path, *, authenticated: bool = False) -> DriftReport:
         authenticated=authenticated,
         observations=observations,
     )
+    # Runs without `--authenticated`: PyPI and the tap are public, and a reader
+    # that cannot reach its channel answers `unverifiable` rather than failing
+    # the run. That is the point — an offline audit degrades, it does not lie.
+    policy.findings += verify_channels(repos, ledger, readers or live_readers(gh_client()))
+    policy.findings += evaluate_python_support(repos)
     documentation = [
         issue
         for repo in repos
@@ -92,13 +143,22 @@ def main(argv: list[str] | None = None) -> int:
         help="Read remote settings through `gh`; without it they are unverifiable.",
     )
     parser.add_argument(
+        "--offline",
+        action="store_true",
+        help="Contact no publication channel; release-state controls report unverifiable.",
+    )
+    parser.add_argument(
         "--strict",
         action="store_true",
         help="Exit non-zero when anything is out of policy.",
     )
     args = parser.parse_args(argv)
 
-    report = build_report(args.root, authenticated=args.authenticated)
+    report = build_report(
+        args.root,
+        authenticated=args.authenticated,
+        readers=unreadable() if args.offline else None,
+    )
     print(report.markdown())
     if args.matrix:
         print()

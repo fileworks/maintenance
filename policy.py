@@ -14,6 +14,8 @@ a compliance tool exists to prevent.
 from __future__ import annotations
 
 import json
+import re
+import tomllib
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -63,6 +65,46 @@ class SettingControl:
     rationale: str = ""
     #: Controls that must be observed green before this one may be applied.
     prerequisites: tuple[str, ...] = ()
+
+
+#: The control that compares the recorded release state to the channel serving
+#: it. Named here rather than in `channels` so `drift` can render its findings
+#: without importing the module that produces them.
+LEDGER_CHANNEL_CONTROL = "ledger_matches_channels"
+
+
+@dataclass(frozen=True)
+class ReleaseControl:
+    """A published channel that the recorded release state is checked against.
+
+    Unlike a file control, satisfying this one means reading something outside
+    the repository. That is recorded explicitly in `needs_network` so an offline
+    run reports `unverifiable` and keeps going, rather than failing or — far
+    worse — reporting compliance for a channel nobody reached.
+    """
+
+    control_id: str
+    applies_to: tuple[RepoClass, ...]
+    needs_network: bool = True
+    rationale: str = ""
+
+
+def release_controls() -> tuple[ReleaseControl, ...]:
+    """Controls whose evidence lives on a publication channel, not on disk.
+
+    The tap is excluded by class: it is unversioned infrastructure, so it makes
+    no version claim that could disagree with anything.
+    """
+    return (
+        ReleaseControl(
+            LEDGER_CHANNEL_CONTROL,
+            applies_to=("desktop_application", "python_cli"),
+            rationale=(
+                "A recorded version nobody re-checked is a claim, not a fact — "
+                "and every downstream document inherits it."
+            ),
+        ),
+    )
 
 
 @dataclass(frozen=True)
@@ -206,6 +248,187 @@ def setting_controls() -> tuple[SettingControl, ...]:
             rationale="Workflows get write access explicitly, never by default.",
         ),
     )
+
+
+# --------------------------------------------------------------------------- #
+# Python support: what is tested, what is claimed, what is admitted            #
+# --------------------------------------------------------------------------- #
+
+#: The control that holds a package's three Python-version claims to each other.
+PYTHON_SUPPORT_CONTROL = "python_support_agreement"
+
+#: Python versions that exist. A `requires-python` lower bound admits every
+#: *future* release too, so without a ceiling this check would report a finding
+#: for versions nobody can test yet. Add the next one when it ships.
+KNOWN_PYTHONS: tuple[str, ...] = ("3.12", "3.13", "3.14")
+
+_MATRIX_BLOCK = re.compile(
+    r"^(?P<indent>[ \t]*)matrix:[ \t]*\n(?P<body>(?:(?P=indent)[ \t]+\S.*\n|[ \t]*\n)*)",
+    re.MULTILINE,
+)
+_PYTHON_KEY = re.compile(
+    r"^[ \t]*python(?:-version)?s?:[ \t]*(?P<inline>\[[^\]]*\])?[ \t]*\n"
+    r"(?P<block>(?:[ \t]*-[ \t]*\S.*\n)*)",
+    re.MULTILINE,
+)
+_VERSION = re.compile(r"(\d+\.\d+)")
+_CLASSIFIER = re.compile(r"^Programming Language :: Python :: (\d+\.\d+)$")
+_LOWER_BOUND = re.compile(r">=\s*(\d+)\.(\d+)")
+
+
+@dataclass(frozen=True)
+class PythonSupport:
+    """One package's three separate claims about which Pythons it runs on.
+
+    They are maintained in three files and were never compared, so they drifted
+    in both directions at once: `unpacksort` tested 3.14 without claiming it,
+    while two packages claimed 3.13 with no Python matrix in CI at all. One tool
+    tested more than it promised and two promised more than they tested.
+    """
+
+    repository: str
+    tested: tuple[str, ...]
+    classified: tuple[str, ...]
+    requires_python: str
+
+    @property
+    def admitted(self) -> tuple[str, ...]:
+        """Released versions the `requires-python` bound lets a resolver install."""
+        bound = _LOWER_BOUND.search(self.requires_python)
+        if bound is None:
+            return ()
+        floor = (int(bound.group(1)), int(bound.group(2)))
+        return tuple(
+            version
+            for version in KNOWN_PYTHONS
+            if tuple(int(part) for part in version.split(".")) >= floor
+        )
+
+    @property
+    def tested_not_claimed(self) -> tuple[str, ...]:
+        return tuple(sorted(set(self.tested) - set(self.classified)))
+
+    @property
+    def claimed_not_tested(self) -> tuple[str, ...]:
+        return tuple(sorted(set(self.classified) - set(self.tested)))
+
+    @property
+    def admitted_not_declared(self) -> tuple[str, ...]:
+        """Installable, but neither tested nor claimed — an implicit promise."""
+        return tuple(sorted(set(self.admitted) - set(self.classified) - set(self.tested)))
+
+    @property
+    def agrees(self) -> bool:
+        return not (
+            self.tested_not_claimed or self.claimed_not_tested or self.admitted_not_declared
+        )
+
+    def describe(self) -> str:
+        parts = []
+        if self.tested_not_claimed:
+            parts.append(f"CI tests {', '.join(self.tested_not_claimed)} without a classifier")
+        if self.claimed_not_tested:
+            parts.append(f"classifiers claim {', '.join(self.claimed_not_tested)} untested by CI")
+        if self.admitted_not_declared:
+            parts.append(
+                f"requires-python {self.requires_python} admits "
+                f"{', '.join(self.admitted_not_declared)}, which is neither tested nor claimed"
+            )
+        return "; ".join(parts) or "the CI matrix, requires-python and the classifiers agree"
+
+
+def matrix_pythons(workflow: str) -> tuple[str, ...]:
+    """Python versions a workflow's job matrices actually run.
+
+    Read with a regular expression rather than a YAML parser, matching how
+    `workflows.py` already reads these files: the package declares no YAML
+    dependency, and a governance check should not be the reason to add one.
+    Only `matrix:` blocks count — a lone `python-version:` on a setup step
+    pins one job, it does not express supported versions.
+    """
+    found: set[str] = set()
+    for block in _MATRIX_BLOCK.finditer(workflow):
+        for key in _PYTHON_KEY.finditer(block.group("body")):
+            text = (key.group("inline") or "") + (key.group("block") or "")
+            found.update(_VERSION.findall(text))
+    return tuple(sorted(found))
+
+
+def classifier_pythons(classifiers: Iterable[str]) -> tuple[str, ...]:
+    """The `X.Y` classifiers only.
+
+    `Programming Language :: Python :: 3 :: Only` is excluded deliberately: it
+    says "not Python 2", which is a different claim from "runs on 3.13".
+    """
+    matched = {match.group(1) for item in classifiers if (match := _CLASSIFIER.match(item))}
+    return tuple(sorted(matched))
+
+
+def read_python_support(repo: Repository) -> PythonSupport | None:
+    """Gather the three claims from disk, or `None` if there is no package here."""
+    manifest = repo.path / "pyproject.toml"
+    if not manifest.is_file():
+        return None
+    try:
+        project = tomllib.loads(manifest.read_text(encoding="utf-8")).get("project", {})
+    except (OSError, tomllib.TOMLDecodeError):
+        return None
+
+    workflows = repo.path / ".github" / "workflows"
+    tested: set[str] = set()
+    if workflows.is_dir():
+        for path in sorted(workflows.glob("*.yml")) + sorted(workflows.glob("*.yaml")):
+            try:
+                tested.update(matrix_pythons(path.read_text(encoding="utf-8")))
+            except OSError:
+                continue
+
+    return PythonSupport(
+        repository=repo.name,
+        tested=tuple(sorted(tested)),
+        classified=classifier_pythons(project.get("classifiers", [])),
+        requires_python=str(project.get("requires-python", "")),
+    )
+
+
+def evaluate_python_support(
+    repos: Sequence[Repository],
+    *,
+    applies_to: tuple[RepoClass, ...] = ("python_cli",),
+) -> tuple[Finding, ...]:
+    """Hold every published package's Python claims to each other."""
+    results: list[Finding] = []
+    for repo in repos:
+        if repo.repo_class not in applies_to:
+            continue
+        support = read_python_support(repo)
+        if support is None:
+            results.append(
+                Finding(
+                    repo.name,
+                    repo.repo_class,
+                    PYTHON_SUPPORT_CONTROL,
+                    "unverifiable",
+                    detail="pyproject.toml is absent or unreadable",
+                )
+            )
+            continue
+        results.append(
+            Finding(
+                repo.name,
+                repo.repo_class,
+                PYTHON_SUPPORT_CONTROL,
+                "compliant" if support.agrees else "mismatched",
+                detail=support.describe(),
+                remediation=(
+                    ""
+                    if support.agrees
+                    else "test what you claim and claim what you test — never leave CI "
+                    "exercising a version the package disclaims"
+                ),
+            )
+        )
+    return tuple(results)
 
 
 def repositories(root: Path) -> tuple[Repository, ...]:
