@@ -1,21 +1,21 @@
 {
   "ledger_version": "1",
-  "generated_at": "2026-08-01T13:48:14+00:00",
+  "generated_at": "2026-08-04T16:10:13.675258+00:00",
   "products": [
     {
       "name": "media-sorter",
       "repository": "media-sorter",
       "owner": "fileworks",
-      "released_version": "1.2.2",
+      "released_version": "1.2.5",
       "channels_disagree": false,
       "channels": [
         {
           "channel": "github_release",
           "identifier": "fileworks/media-sorter",
-          "version": "1.2.2",
+          "version": "1.2.5",
           "state": "verified",
-          "verified_at": "2026-08-01T13:48:14+00:00",
-          "detail": "GitHub release v1.2.2 published 2026-08-01 after all automated source, native, package, checksum, startup, and signing-state gates passed"
+          "verified_at": "2026-08-04T16:10:13.675258+00:00",
+          "detail": "observed on github_release"
         },
         {
           "channel": "homebrew",
@@ -47,32 +47,32 @@
       "name": "immich-export",
       "repository": "immich-export",
       "owner": "fileworks",
-      "released_version": "0.2.0",
+      "released_version": "0.2.1",
       "channels_disagree": false,
       "channels": [
         {
           "channel": "github_release",
           "identifier": "fileworks/immich-export",
-          "version": "0.2.0",
+          "version": "0.2.1",
           "state": "verified",
-          "verified_at": "2026-08-01T12:52:23.818086+00:00",
-          "detail": "GitHub release v0.2.0, published 2026-08-01"
+          "verified_at": "2026-08-04T16:10:13.675258+00:00",
+          "detail": "observed on github_release"
         },
         {
           "channel": "homebrew",
           "identifier": "fileworks/tap/immich-export",
-          "version": "0.2.0",
+          "version": "0.2.1",
           "state": "verified",
-          "verified_at": "2026-08-01T12:52:23.818086+00:00",
-          "detail": "tap formula pins immich_export-0.2.0 with audited locked resources"
+          "verified_at": "2026-08-04T16:10:13.675258+00:00",
+          "detail": "observed on homebrew"
         },
         {
           "channel": "pypi",
           "identifier": "immich-export",
-          "version": "0.2.0",
+          "version": "0.2.1",
           "state": "verified",
-          "verified_at": "2026-08-01T12:52:23.818086+00:00",
-          "detail": "PyPI JSON API returned 0.2.0"
+          "verified_at": "2026-08-04T16:10:13.675258+00:00",
+          "detail": "observed on pypi"
         },
         {
           "channel": "winget",
@@ -88,32 +88,32 @@
       "name": "paperless-export",
       "repository": "paperless-export",
       "owner": "fileworks",
-      "released_version": "1.2.0",
+      "released_version": "1.2.2",
       "channels_disagree": false,
       "channels": [
         {
           "channel": "github_release",
           "identifier": "fileworks/paperless-export",
-          "version": "1.2.0",
+          "version": "1.2.2",
           "state": "verified",
-          "verified_at": "2026-08-01T12:52:23.818086+00:00",
-          "detail": "GitHub release v1.2.0, published 2026-08-01"
+          "verified_at": "2026-08-04T16:10:13.675258+00:00",
+          "detail": "observed on github_release"
         },
         {
           "channel": "homebrew",
           "identifier": "fileworks/tap/paperless-export",
-          "version": "1.2.0",
+          "version": "1.2.2",
           "state": "verified",
-          "verified_at": "2026-08-01T12:52:23.818086+00:00",
-          "detail": "tap formula pins paperless_export-1.2.0 with audited locked resources"
+          "verified_at": "2026-08-04T16:10:13.675258+00:00",
+          "detail": "observed on homebrew"
         },
         {
           "channel": "pypi",
           "identifier": "paperless-export",
-          "version": "1.2.0",
+          "version": "1.2.2",
           "state": "verified",
-          "verified_at": "2026-08-01T12:52:23.818086+00:00",
-          "detail": "PyPI JSON API returned 1.2.0"
+          "verified_at": "2026-08-04T16:10:13.675258+00:00",
+          "detail": "observed on pypi"
         },
         {
           "channel": "winget",
@@ -137,24 +137,24 @@
           "identifier": "fileworks/unpacksort",
           "version": "1.1.0",
           "state": "verified",
-          "verified_at": "2026-08-01T12:52:23.818086+00:00",
-          "detail": "GitHub release v1.1.0 assets, checksums, types, layout, and timestamps reverified"
+          "verified_at": "2026-08-04T16:10:13.675258+00:00",
+          "detail": "observed on github_release"
         },
         {
           "channel": "homebrew",
           "identifier": "fileworks/tap/unpacksort",
           "version": "1.1.0",
           "state": "verified",
-          "verified_at": "2026-08-01T12:52:23.818086+00:00",
-          "detail": "tap formula passed Linux/macOS audit, macOS source install, extraction, and manifest test"
+          "verified_at": "2026-08-04T16:10:13.675258+00:00",
+          "detail": "observed on homebrew"
         },
         {
           "channel": "pypi",
           "identifier": "unpacksort",
           "version": "1.1.0",
           "state": "verified",
-          "verified_at": "2026-08-01T12:52:23.818086+00:00",
-          "detail": "PyPI JSON API returned 1.1.0; wheel and sdist attestations verified"
+          "verified_at": "2026-08-04T16:10:13.675258+00:00",
+          "detail": "observed on pypi"
         },
         {
           "channel": "winget",

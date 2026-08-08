@@ -345,3 +345,29 @@ def _installs_only_declared_resources(source: str) -> bool:
 
 def resource_count(source: str) -> int:
     return len(re.findall(r"^\s*resource\s+\"", source, re.MULTILINE))
+
+
+#: The formula's own `url`, as distinct from a `resource` block's. Anchored to
+#: two-space indentation because that is the only depth `render` writes it at:
+#: a resource's URL is indented four, and matching it would report a
+#: dependency's version as the formula's.
+_FORMULA_URL = re.compile(r'^  url "([^"]+)"', re.MULTILINE)
+
+#: `immich_export-0.2.1.tar.gz` and `unpacksort-1.1.0.tar.gz` — PyPI normalises
+#: the distribution name but leaves the version alone.
+_SDIST_VERSION = re.compile(r"-(\d[^-/]*)\.(?:tar\.gz|zip)$")
+
+
+def sdist_version(source: str) -> str | None:
+    """The version a rendered formula installs, read back out of its sdist URL.
+
+    The formula has no `version` stanza — Homebrew infers it from the URL, and
+    so does this. Returns `None` for the deliberately incomplete `PENDING` form
+    and for anything else it cannot read, because a formula whose version cannot
+    be established is not a formula reporting version zero.
+    """
+    match = _FORMULA_URL.search(source)
+    if match is None:
+        return None
+    version = _SDIST_VERSION.search(match.group(1))
+    return version.group(1) if version else None
