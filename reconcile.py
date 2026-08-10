@@ -239,10 +239,6 @@ def observe(repository: Repository, owner: str, client: Client) -> dict[str, Any
         "delete_branch_on_merge": payload.get("delete_branch_on_merge"),
         "allow_squash_merge": payload.get("allow_squash_merge"),
         "topics": payload.get("topics", []),
-        "security_and_analysis.dependabot_security_updates": _nested(
-            payload, "security_and_analysis", "dependabot_security_updates", "status"
-        )
-        == "enabled",
     }
 
     ok, actions = client(

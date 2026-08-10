@@ -11,19 +11,6 @@ from pathlib import Path
 
 import pytest
 
-from maintenance.dependabot import (
-    AUTOMERGE_WORKFLOW,
-    AutomationMetrics,
-    Ecosystem,
-    MetricsBaseline,
-    RepoDependabot,
-    automerge_allowed,
-    complete_pipeline,
-    metrics_markdown,
-    render_config,
-    repo_configs,
-    write_repo_config,
-)
 from maintenance.docs import (
     check_install_commands,
     check_links,
@@ -46,6 +33,11 @@ from maintenance.policy import (
     load_exceptions,
     repositories,
     setting_controls,
+)
+from maintenance.renovate import (
+    AutomationMetrics,
+    MetricsBaseline,
+    metrics_markdown,
 )
 from maintenance.workflows import (
     CARGO_AUDIT_VERSION,
@@ -139,7 +131,6 @@ class TestPolicyEvaluation:
                     "description": "does a thing",
                     "delete_branch_on_merge": True,
                     "allow_squash_merge": False,
-                    "security_and_analysis.dependabot_security_updates": True,
                     "protection.main.required_status_checks": ["test"],
                     "actions.default_workflow_permissions": "write",
                 }
@@ -273,87 +264,27 @@ class TestGates:
         }
 
 
-class TestDependabot:
-    def test_every_managed_update_class_is_eligible(self) -> None:
-        assert automerge_allowed("patch") is True
-        assert automerge_allowed("security") is True
-        assert automerge_allowed("digest") is True
+class TestRenovate:
+    def test_the_central_policy_batches_mature_updates_and_automerge_is_green_only(self) -> None:
+        policy = json.loads(Path("maintenance/renovate-policy.json").read_text(encoding="utf-8"))
 
-    def test_majors_are_eligible_only_through_the_same_gate(self) -> None:
-        assert automerge_allowed("major") is True
-
-    def test_all_updates_use_protected_branch_automerge(self) -> None:
-        assert "gh pr merge --auto --squash" in AUTOMERGE_WORKFLOW
-        assert "gh pr list \\\n            --state open \\" in AUTOMERGE_WORKFLOW
-        assert "--author app/dependabot" in AUTOMERGE_WORKFLOW
-        assert "schedule:" in AUTOMERGE_WORKFLOW
-        assert "workflow_dispatch:" in AUTOMERGE_WORKFLOW
-        assert "pull_request:" not in AUTOMERGE_WORKFLOW
-        assert "permissions:\n  contents: read\n  pull-requests: read" in AUTOMERGE_WORKFLOW
-        assert "    permissions:\n      contents: write" in AUTOMERGE_WORKFLOW
-        assert "GH_TOKEN: ${{ secrets.SEMANTIC_RELEASE_TOKEN }}" in AUTOMERGE_WORKFLOW
-        assert "secrets.GITHUB_TOKEN" not in AUTOMERGE_WORKFLOW
-
-    @pytest.mark.parametrize(
-        "state",
-        ["missing", "pending", "skipped", "neutral", "failure", "stale"],
-    )
-    def test_any_incomplete_required_check_blocks_merge(self, state: str) -> None:
-        assert (
-            complete_pipeline({"quality": "success", "package": state}, {"quality", "package"})
-            is False
+        assert policy["prConcurrentLimit"] == 15
+        assert policy["minimumReleaseAge"] == "7 days"
+        assert policy["schedule"] == ["before 5am on monday"]
+        assert policy["automerge"] is True
+        assert policy["automergeType"] == "pr"
+        assert policy["vulnerabilityAlerts"]["enabled"] is True
+        assert any(
+            rule["groupSlug"] == "weekly-dependency-updates" for rule in policy["packageRules"]
         )
 
-    def test_every_required_check_must_explicitly_succeed(self) -> None:
-        assert complete_pipeline(
-            {"quality": "success", "package": "success"},
-            {"quality", "package"},
+    def test_the_central_policy_keeps_tauri_updates_together(self) -> None:
+        policy = json.loads(Path("maintenance/renovate-policy.json").read_text(encoding="utf-8"))
+
+        tauri_rule = next(
+            rule for rule in policy["packageRules"] if rule["groupSlug"] == "tauri-platform-updates"
         )
-
-    def test_a_stability_age_is_required(self) -> None:
-        config = repo_configs()[0].config()
-        assert all(update["cooldown"]["default-days"] for update in config["updates"])
-
-    def test_every_repository_is_covered(self) -> None:
-        assert {config.name for config in repo_configs()} == {
-            "media-sorter",
-            "immich-export",
-            "paperless-export",
-            "unpacksort",
-            "homebrew-tap",
-            "maintenance",
-        }
-
-    def test_tauri_major_is_held_as_one_coherent_platform_migration(self) -> None:
-        media = next(config for config in repo_configs() if config.name == "media-sorter")
-        rendered = render_config(media)
-
-        for dependency in ("tauri", "tauri-build", "@tauri-apps/api", "@tauri-apps/cli"):
-            assert f'dependency-name: "{dependency}"' in rendered
-        assert rendered.count('update-types: ["version-update:semver-major"]') == 4
-
-    def test_media_sorter_covers_every_manifest_location(self) -> None:
-        media = next(config for config in repo_configs() if config.name == "media-sorter")
-        coverage = {(item.name, item.directories) for item in media.ecosystems}
-
-        assert ("uv", ("/backend",)) in coverage
-        assert ("npm", ("/", "/frontend")) in coverage
-        assert ("cargo", ("/frontend/src-tauri",)) in coverage
-        assert ("github-actions", ("/",)) in coverage
-
-    def test_the_tap_only_updates_actions(self) -> None:
-        tap = next(config for config in repo_configs() if config.name == "homebrew-tap")
-        assert tap.ecosystems == (Ecosystem("github-actions", ("/",)),)
-
-    def test_writing_produces_config_and_workflow(self, tmp_path: Path) -> None:
-        config, workflow = write_repo_config(
-            RepoDependabot("demo", (Ecosystem("uv", ("/",)),)),
-            tmp_path,
-        )
-
-        assert 'package-ecosystem: "uv"' in config.read_text(encoding="utf-8")
-        assert workflow.read_text(encoding="utf-8") == AUTOMERGE_WORKFLOW
-        assert render_config(repo_configs()[0]).endswith("\n")
+        assert tauri_rule["matchPackageNames"] == ["tauri", "tauri-build", "@tauri-apps/*"]
 
     def test_metrics_recommend_nothing_before_a_cycle_has_run(self) -> None:
         assert "nothing to tune" in AutomationMetrics().recommendation()

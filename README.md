@@ -27,7 +27,8 @@ production settings by accident.
 |---|---|
 | `policy.py` | The desired-state manifest: repository classes, required files, audited settings, and the exception schema. Plus the evaluator. |
 | `gates.py` | Stable gate names and the class × gate matrix. Renaming a gate silently unprotects a branch, so the names live here once. |
-| `dependabot.py` | The GitHub-native dependency policy, per-repository generator, and protected auto-merge workflow. |
+| `renovate-policy.json` | The centrally shared Renovate policy used by every managed repository. |
+| `renovate.py` | Dependency-automation metrics and recommendations. |
 | `ledger.py` | The canonical machine-readable release ledger. |
 | `docs.py` | README information architecture, install-command checks, version-drift checks against the ledger, and link checks. |
 | `deployments.py` | Canonical GitHub Release versus Deployment environments and workflow checks. |
@@ -48,34 +49,24 @@ something nobody checked is the failure a compliance tool exists to prevent.
 
 ## Dependency automation
 
-The shared policy lives in `dependabot.py` and generates `.github/dependabot.yml`
-plus a protected auto-merge workflow into each repository. The projects are
-independently released and intentionally do not depend on a shared `.github`
-repository. GitHub starts Dependabot from the checked-in configuration, so this
-has no separately installed App or service account.
+`renovate-policy.json` is a GitHub-hosted shared Renovate preset. Every managed
+repository has only a minimal `renovate.json` that extends
+`github>fileworks/maintenance:renovate-policy`, so changes to the central policy
+apply everywhere without generating or synchronizing copied configuration.
 
-Every update class — including major, `0.x`, lockfile, digest, publisher,
-toolchain, codec, installer, and vulnerability updates — enters GitHub
-auto-merge unless it is an explicit coherent-platform migration hold. It merges
-only after every applicable required check reports a fresh success. Where the
-existing semantic-release credential is available, the
-scheduled base-branch workflow uses it to enable the merge because GitHub
-suppresses `push` workflows for merges performed by `GITHUB_TOKEN`. It never
-executes pull-request code and selects only pull requests authored by the
-Dependabot App, so the credential is not exposed to Dependabot-authored
-workflows. Every repository therefore carries the `SEMANTIC_RELEASE_TOKEN`
-Actions secret; the workflow fails closed if it is missing instead of merging
-without running downstream CI and release evaluation. Compatible minor and
-patch updates are grouped by ecosystem, normal updates observe a three-day
-cooldown and weekly schedule, and security updates bypass that delay without
-bypassing protected checks.
+The Mend Renovate App must be installed for `maintenance` and every managed
+repository. It needs access to repository contents, pull requests, issues,
+workflows, commit statuses, checks, and read access to Dependabot alerts. No
+repository Actions secret or deploy key is needed for the hosted App. Keep
+GitHub's Dependency Graph and Dependabot alerts enabled as Renovate's
+vulnerability signal, but disable Dependabot version updates and automated
+security-update PRs so Renovate is the only update author.
 
-The only named version hold is MediaSorter’s Tauri 2 platform boundary. Tauri’s
-Rust runtime, build crate, JavaScript API, CLI, configuration schema, and
-capability model must move together; Dependabot therefore ignores isolated
-major updates for those four packages while continuing to update their current
-major line. This prevents an invalid partial migration such as `tauri-build` 2
-with the Tauri 1 runtime and configuration.
+Normal updates are batched into one weekly PR, wait until releases are seven
+days old, and auto-merge only after the repository's required checks pass.
+Vulnerability PRs bypass the weekly delay but use the same protected PR merge
+path. MediaSorter's Tauri Rust and JavaScript packages are grouped into one
+coherent platform migration.
 
 ## Gate alignment
 
@@ -132,17 +123,17 @@ The audit checks that what is on display is still the family that was approved.
 
 ## Development
 
-### Regenerating
+### Renovate rollout
 
-```console
-python - <<'EOF'
-from pathlib import Path
-from maintenance.dependabot import repo_configs, write_repo_config
+Install the Mend Renovate App for all managed repositories, including this one,
+then merge each repository's `renovate.json`. Renovate reads the shared policy
+from this repository on every run; there is no generation step to repeat.
 
-for config in repo_configs():
-    write_repo_config(config, Path(config.name))
-EOF
-```
+The hosted App supplies its own credentials, so this migration needs no deploy
+key, `RENOVATE_TOKEN`, or repository Actions secret. After Renovate is active,
+disable Dependabot automated security fixes in each repository while leaving the
+Dependency Graph and Dependabot alerts enabled. Renovate reads those alerts and
+creates the security-fix PRs itself.
 
 The ledger is regenerated by recording observations against `ledger.scaffold()`;
 see `maintenance/tests/test_maintenance.py` for the shape.

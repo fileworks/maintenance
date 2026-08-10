@@ -1,0 +1,54 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": "Central dependency-maintenance policy for fileworks repositories.",
+  "extends": [
+    "config:best-practices",
+    ":enableVulnerabilityAlerts",
+    "helpers:pinGitHubActionDigests"
+  ],
+  "labels": ["dependencies"],
+  "dependencyDashboard": true,
+  "prConcurrentLimit": 15,
+  "branchConcurrentLimit": 15,
+  "prHourlyLimit": 0,
+  "schedule": ["before 5am on monday"],
+  "minimumReleaseAge": "7 days",
+  "automerge": true,
+  "automergeType": "pr",
+  "platformAutomerge": false,
+  "packageRules": [
+    {
+      "description": "Batch normal maintenance into one weekly PR per repository.",
+      "matchUpdateTypes": [
+        "major",
+        "minor",
+        "patch",
+        "pin",
+        "digest",
+        "lockFileMaintenance",
+        "rollback",
+        "replacement"
+      ],
+      "groupName": "weekly dependency updates",
+      "groupSlug": "weekly-dependency-updates"
+    },
+    {
+      "description": "Keep MediaSorter's Tauri platform packages in one coherent migration.",
+      "matchPackageNames": [
+        "tauri",
+        "tauri-build",
+        "@tauri-apps/*"
+      ],
+      "groupName": "Tauri platform updates",
+      "groupSlug": "tauri-platform-updates"
+    }
+  ],
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "labels": ["dependencies", "security"],
+    "automerge": true,
+    "automergeType": "pr",
+    "platformAutomerge": false,
+    "vulnerabilityFixStrategy": "highest"
+  }
+}

@@ -180,10 +180,10 @@ def file_controls() -> tuple[FileControl, ...]:
             rationale="Review routing is explicit rather than implied.",
         ),
         FileControl(
-            "dependabot",
-            ".github/dependabot.yml",
-            must_contain=("package-ecosystem", "schedule"),
-            rationale="GitHub-native version updates run without an external App or token.",
+            "renovate",
+            "renovate.json",
+            must_contain=("github>fileworks/maintenance:renovate-policy",),
+            rationale="Dependency updates inherit the centrally managed Renovate policy.",
         ),
         FileControl(
             "quality_workflow",
@@ -227,12 +227,6 @@ def setting_controls() -> tuple[SettingControl, ...]:
             "allow_squash_merge",
             expected=True,
             rationale="One commit per change keeps the history readable.",
-        ),
-        SettingControl(
-            "vulnerability_alerts",
-            "security_and_analysis.dependabot_security_updates",
-            expected=True,
-            rationale="Known-vulnerable dependencies are surfaced automatically.",
         ),
         SettingControl(
             "default_branch_protection",

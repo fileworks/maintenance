@@ -232,16 +232,15 @@ def run(
 
     dependency_automation = []
     for repo in repos:
-        config = repo.path / ".github" / "dependabot.yml"
+        config = repo.path / "renovate.json"
         if not config.is_file():
-            dependency_automation.append(f"{repo.name}: no .github/dependabot.yml")
+            dependency_automation.append(f"{repo.name}: no renovate.json")
             continue
         source = config.read_text(encoding="utf-8")
-        if "version: 2" not in source or "package-ecosystem:" not in source:
-            dependency_automation.append(f"{repo.name}: dependabot.yml carries no update policy")
-        workflow = repo.path / ".github" / "workflows" / "dependabot-automerge.yml"
-        if not workflow.is_file():
-            dependency_automation.append(f"{repo.name}: no protected auto-merge workflow")
+        if "github>fileworks/maintenance:renovate-policy" not in source:
+            dependency_automation.append(
+                f"{repo.name}: renovate.json does not extend central policy"
+            )
     report.sections.append(
         AuditSection(
             "Dependency automation",
