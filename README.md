@@ -1,3 +1,5 @@
+<img src=".github/icon.svg" alt="" width="72" height="72" align="left">
+
 # Cross-repository maintenance
 
 The executable policy all six `fileworks` Git repositories are held to, including
@@ -34,6 +36,7 @@ production settings by accident.
 | `deployments.py` | Canonical GitHub Release versus Deployment environments and workflow checks. |
 | `drift.py` | The report, the dry-run plan for remote settings, and the compliance matrix. |
 | `formula.py`, `generated/` | The sdist-oriented reference generator and frozen regression fixtures. Live release formulas are generated and owned by `homebrew-tap`. |
+| `identity/social_previews.py` | The semantic copy and shared layout for all six public GitHub social previews. |
 | `release-ledger.json` | The generated ledger. Regenerate it; do not hand-edit it. |
 | `exceptions.json` | Documented, dated, owned exceptions. Absent means none. |
 

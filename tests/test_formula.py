@@ -18,6 +18,7 @@ from maintenance.formula import (
     render,
     resource_count,
 )
+from maintenance.paths import REPO_ROOT
 
 # Composed rather than interpolated: the surrounding TOML is full of braces, so
 # neither an f-string nor `.format()` can template it without escaping every one.
@@ -194,7 +195,7 @@ end
         assert any("no pinned resources" in issue.detail for issue in issues)
 
     def test_the_shipped_generated_formulas_are_hermetic(self) -> None:
-        directory = Path("maintenance/generated")
+        directory = REPO_ROOT / "generated"
         if not directory.is_dir():
             pytest.skip("formulas have not been generated in this checkout")
         for path in sorted(directory.glob("*.rb")):

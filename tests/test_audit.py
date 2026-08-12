@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 
 from maintenance.audit import AuditReport, AuditSection, run
+from maintenance.paths import REPO_ROOT
 
 
 class TestSections:
@@ -36,7 +37,7 @@ class TestSections:
 
 class TestRun:
     def test_it_runs_against_the_real_workspace_without_credentials(self) -> None:
-        report = run(Path.cwd(), ledger_path=Path("maintenance/release-ledger.json"))
+        report = run(REPO_ROOT.parent, ledger_path=REPO_ROOT / "release-ledger.json")
 
         names = {section.name for section in report.sections}
         assert {

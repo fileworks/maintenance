@@ -23,6 +23,7 @@ from maintenance.docs import (
 from maintenance.drift import DriftReport, compliance_matrix, plan_settings
 from maintenance.gates import GATES, matrix, not_applicable, required_checks
 from maintenance.ledger import ReleaseLedger, record, scaffold
+from maintenance.paths import REPO_ROOT
 from maintenance.policy import (
     FileControl,
     PolicyException,
@@ -266,7 +267,7 @@ class TestGates:
 
 class TestRenovate:
     def test_the_central_policy_batches_mature_updates_and_automerge_is_green_only(self) -> None:
-        policy = json.loads(Path("maintenance/renovate-policy.json").read_text(encoding="utf-8"))
+        policy = json.loads((REPO_ROOT / "renovate-policy.json").read_text(encoding="utf-8"))
 
         assert policy["prConcurrentLimit"] == 15
         assert policy["minimumReleaseAge"] == "7 days"
@@ -279,7 +280,7 @@ class TestRenovate:
         )
 
     def test_the_central_policy_keeps_tauri_updates_together(self) -> None:
-        policy = json.loads(Path("maintenance/renovate-policy.json").read_text(encoding="utf-8"))
+        policy = json.loads((REPO_ROOT / "renovate-policy.json").read_text(encoding="utf-8"))
 
         tauri_rule = next(
             rule for rule in policy["packageRules"] if rule["groupSlug"] == "tauri-platform-updates"
@@ -702,12 +703,12 @@ class TestMetricsBaseline:
 class TestSharedWorkflows:
     def test_the_shared_workflows_are_reusable_and_least_privileged(self) -> None:
         for name in ("python-quality.yml", "docs-links.yml"):
-            source = Path("maintenance/workflows-shared", name).read_text(encoding="utf-8")
+            source = (REPO_ROOT / "workflows-shared" / name).read_text(encoding="utf-8")
             assert "workflow_call:" in source
             assert "permissions:\n  contents: read" in source
 
     def test_the_shared_workflows_never_publish(self) -> None:
-        for path in Path("maintenance/workflows-shared").glob("*.yml"):
+        for path in (REPO_ROOT / "workflows-shared").glob("*.yml"):
             source = path.read_text(encoding="utf-8")
             for forbidden in (
                 "pypi",
@@ -718,13 +719,13 @@ class TestSharedWorkflows:
                 assert forbidden not in source.lower(), f"{path.name} must not publish"
 
     def test_the_quality_workflow_exposes_its_revision(self) -> None:
-        source = Path("maintenance/workflows-shared/python-quality.yml").read_text(encoding="utf-8")
+        source = (REPO_ROOT / "workflows-shared/python-quality.yml").read_text(encoding="utf-8")
 
         assert "outputs:" in source
         assert "revision" in source
 
     def test_the_gate_step_names_match_the_registry(self) -> None:
-        source = Path("maintenance/workflows-shared/python-quality.yml").read_text(encoding="utf-8")
+        source = (REPO_ROOT / "workflows-shared/python-quality.yml").read_text(encoding="utf-8")
 
         for gate in ("format", "lint", "typecheck", "test", "dependency-audit"):
             assert f"- name: {gate}" in source, gate
