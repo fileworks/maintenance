@@ -1,20 +1,20 @@
 {
   "ledger_version": "1",
-  "generated_at": "2026-08-04T16:10:13.675258+00:00",
+  "generated_at": "2026-08-12T19:25:00+00:00",
   "products": [
     {
       "name": "media-sorter",
       "repository": "media-sorter",
       "owner": "fileworks",
-      "released_version": "1.2.5",
+      "released_version": "1.4.2",
       "channels_disagree": false,
       "channels": [
         {
           "channel": "github_release",
           "identifier": "fileworks/media-sorter",
-          "version": "1.2.5",
+          "version": "1.4.2",
           "state": "verified",
-          "verified_at": "2026-08-04T16:10:13.675258+00:00",
+          "verified_at": "2026-08-12T19:22:33+00:00",
           "detail": "observed on github_release"
         },
         {
@@ -47,31 +47,31 @@
       "name": "immich-export",
       "repository": "immich-export",
       "owner": "fileworks",
-      "released_version": "0.2.1",
+      "released_version": "1.0.0",
       "channels_disagree": false,
       "channels": [
         {
           "channel": "github_release",
           "identifier": "fileworks/immich-export",
-          "version": "0.2.1",
+          "version": "1.0.0",
           "state": "verified",
-          "verified_at": "2026-08-04T16:10:13.675258+00:00",
+          "verified_at": "2026-08-12T19:25:00+00:00",
           "detail": "observed on github_release"
         },
         {
           "channel": "homebrew",
           "identifier": "fileworks/tap/immich-export",
-          "version": "0.2.1",
+          "version": "1.0.0",
           "state": "verified",
-          "verified_at": "2026-08-04T16:10:13.675258+00:00",
+          "verified_at": "2026-08-12T19:25:00+00:00",
           "detail": "observed on homebrew"
         },
         {
           "channel": "pypi",
           "identifier": "immich-export",
-          "version": "0.2.1",
+          "version": "1.0.0",
           "state": "verified",
-          "verified_at": "2026-08-04T16:10:13.675258+00:00",
+          "verified_at": "2026-08-12T19:25:00+00:00",
           "detail": "observed on pypi"
         },
         {
