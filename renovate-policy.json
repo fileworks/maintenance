@@ -15,7 +15,11 @@
   "minimumReleaseAge": "7 days",
   "automerge": true,
   "automergeType": "pr",
-  "platformAutomerge": false,
+  "platformAutomerge": true,
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": ["before 5am on monday"]
+  },
   "packageRules": [
     {
       "description": "Batch normal maintenance into one weekly PR per repository.",
@@ -48,7 +52,7 @@
     "labels": ["dependencies", "security"],
     "automerge": true,
     "automergeType": "pr",
-    "platformAutomerge": false,
+    "platformAutomerge": true,
     "vulnerabilityFixStrategy": "highest"
   }
 }
