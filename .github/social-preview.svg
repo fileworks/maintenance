@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="640" viewBox="0 0 1280 640" role="img" aria-labelledby="title description">
+  <title id="title">maintenance · Fileworks</title>
+  <desc id="description">Audit repository policy, releases, dependencies, and drift.</desc>
+  <rect width="1280" height="640" fill="#FAF7F2"/>
+  <rect x="72" y="72" width="1136" height="496" rx="32" fill="#FFFFFF" stroke="#E6E3E0" stroke-width="2"/>
+  <svg x="112" y="108" width="128" height="128" viewBox="0 0 32 32" aria-hidden="true">
+    <g fill="none" stroke="#2A251F" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M16 5.4l9.2 5.3v10.6L16 26.6l-9.2-5.3V10.7z"/><circle stroke="#E8582A" cx="16" cy="16" r="3.5"/></g>
+  </svg>
+  <text x="274" y="159" fill="#C2410C" font-family="Geist Sans,system-ui,sans-serif" font-size="24" font-weight="700" letter-spacing="2">FILEWORKS</text>
+  <text x="274" y="220" fill="#14110F" font-family="Geist Sans,system-ui,sans-serif" font-size="52" font-weight="650">maintenance</text>
+  <text x="112" y="354" fill="#221E1C" font-family="Geist Sans,system-ui,sans-serif" font-size="31" font-weight="500">Audit repository policy, releases, dependencies, and drift.</text>
+  <path d="M112 410H1168" stroke="#E6E3E0" stroke-width="2"/>
+  <g>
+    <text x="112" y="461" fill="#C2410C" font-family="Geist Sans,system-ui,sans-serif" font-size="14" font-weight="700" letter-spacing="1.8">TYPE</text>
+    <text x="112" y="500" fill="#655D58" font-family="Geist Sans,system-ui,sans-serif" font-size="22" font-weight="500">Governance tooling</text>
+    <text x="456" y="461" fill="#C2410C" font-family="Geist Sans,system-ui,sans-serif" font-size="14" font-weight="700" letter-spacing="1.8">MODE</text>
+    <text x="456" y="500" fill="#655D58" font-family="Geist Sans,system-ui,sans-serif" font-size="22" font-weight="500">Read-only checks</text>
+    <text x="800" y="461" fill="#C2410C" font-family="Geist Sans,system-ui,sans-serif" font-size="14" font-weight="700" letter-spacing="1.8">SCOPE</text>
+    <text x="800" y="500" fill="#655D58" font-family="Geist Sans,system-ui,sans-serif" font-size="22" font-weight="500">6 repositories</text>
+  </g>
+</svg>

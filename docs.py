@@ -266,8 +266,9 @@ def check_readme(
         + check_install_commands(repository, repo_class, markdown)
         + check_links(repository, markdown, repo_root)
     )
-    if repo_class != "governance_tool":
-        issues += check_icon(repository, markdown)
+    # The approved Kontur family identifies all six repositories. Governance
+    # is a different product class, not an exception to repository identity.
+    issues += check_icon(repository, markdown)
     if ledger is not None:
         issues += check_versions(repository, markdown, ledger)
     return issues
