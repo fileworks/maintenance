@@ -28,6 +28,12 @@ uv run --project maintenance python -m maintenance.cli --matrix
 
 CI reproduces this by checking out into a `maintenance/` subdirectory.
 
+The parent directory is required only for the checks that *evaluate sibling
+repositories* — the audit and drift matrix need them checked out. The test suite
+itself anchors on `maintenance.paths.REPO_ROOT` rather than the working
+directory, so `uv run pytest` from inside this repository also passes; the two
+branding tests skip there, as noted below.
+
 ## What belongs here
 
 Cross-repository rules, as **executable checks**. A rule that lives only in a

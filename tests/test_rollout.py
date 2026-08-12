@@ -17,6 +17,7 @@ from maintenance.identity.rollout import (
     roll_out,
     targets,
 )
+from maintenance.paths import REPO_ROOT
 
 WHEN = datetime(2026, 7, 28, tzinfo=UTC)
 
@@ -46,7 +47,7 @@ class TestDecision:
         assert record("literal", "ember", approved_by="x").colour().hex == "#C2410C"
 
     def test_the_shipped_decision_is_the_family_that_was_approved(self) -> None:
-        decision = Decision.load(Path("maintenance/identity"))
+        decision = Decision.load(REPO_ROOT / "identity")
 
         assert decision is not None
         assert decision.family == "literal"
