@@ -65,11 +65,14 @@ GitHub's Dependency Graph and Dependabot alerts enabled as Renovate's
 vulnerability signal, but disable Dependabot version updates and automated
 security-update PRs so Renovate is the only update author.
 
-Normal updates are batched into one weekly PR, wait until releases are seven
-days old, and auto-merge only after the repository's required checks pass.
-Vulnerability PRs bypass the weekly delay but use the same protected PR merge
-path. MediaSorter's Tauri Rust and JavaScript packages are grouped into one
-coherent platform migration.
+Minor, patch, pin, digest, and lock-file updates are batched into one weekly PR,
+wait until releases are seven days old, and are squash-merged by Renovate only
+after all observed status checks pass. The batch uses `fix(deps)`, so managed
+products can publish at most one routine dependency patch release per week.
+Major, replacement, and rollback updates remain on the Dependency Dashboard
+until explicitly approved and are never auto-merged. Vulnerability fixes use
+the lowest fixed version and may bypass the weekly delay; a major security
+update still requires a human merge.
 
 ## Gate alignment
 

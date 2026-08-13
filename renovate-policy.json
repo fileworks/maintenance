@@ -7,52 +7,56 @@
     "helpers:pinGitHubActionDigests"
   ],
   "labels": ["dependencies"],
+  "semanticCommits": "enabled",
   "dependencyDashboard": true,
-  "prConcurrentLimit": 15,
-  "branchConcurrentLimit": 15,
+  "prConcurrentLimit": 1,
+  "branchConcurrentLimit": 1,
   "prHourlyLimit": 0,
   "schedule": ["before 5am on monday"],
   "minimumReleaseAge": "7 days",
-  "automerge": true,
+  "automerge": false,
   "automergeType": "pr",
-  "platformAutomerge": true,
+  "automergeStrategy": "squash",
+  "platformAutomerge": false,
+  "ignoreTests": false,
   "lockFileMaintenance": {
     "enabled": true,
     "schedule": ["before 5am on monday"]
   },
   "packageRules": [
     {
-      "description": "Batch normal maintenance into one weekly PR per repository.",
+      "description": "Batch routine maintenance into one tested weekly patch release.",
       "matchUpdateTypes": [
-        "major",
         "minor",
         "patch",
         "pin",
+        "pinDigest",
         "digest",
         "lockFileMaintenance",
-        "rollback",
-        "replacement"
+        "bump"
       ],
       "groupName": "weekly dependency updates",
-      "groupSlug": "weekly-dependency-updates"
+      "groupSlug": "weekly-dependency-updates",
+      "automerge": true,
+      "semanticCommitType": "fix",
+      "semanticCommitScope": "deps"
     },
     {
-      "description": "Keep MediaSorter's Tauri platform packages in one coherent migration.",
-      "matchPackageNames": [
-        "tauri",
-        "tauri-build",
-        "@tauri-apps/*"
+      "description": "Require explicit review for breaking-risk dependency changes.",
+      "matchUpdateTypes": [
+        "major",
+        "replacement",
+        "rollback"
       ],
-      "groupName": "Tauri platform updates",
-      "groupSlug": "tauri-platform-updates"
+      "dependencyDashboardApproval": true,
+      "automerge": false,
+      "semanticCommitType": "chore",
+      "semanticCommitScope": "deps-major"
     }
   ],
   "vulnerabilityAlerts": {
     "enabled": true,
     "labels": ["dependencies", "security"],
-    "automerge": true,
-    "automergeType": "pr",
-    "platformAutomerge": true,
-    "vulnerabilityFixStrategy": "highest"
+    "vulnerabilityFixStrategy": "lowest"
   }
 }
