@@ -266,26 +266,51 @@ class TestGates:
 
 
 class TestRenovate:
-    def test_the_central_policy_batches_mature_updates_and_automerge_is_green_only(self) -> None:
+    def test_the_central_policy_batches_routine_updates_and_automerge_is_green_only(self) -> None:
         policy = json.loads((REPO_ROOT / "renovate-policy.json").read_text(encoding="utf-8"))
 
-        assert policy["prConcurrentLimit"] == 15
+        assert policy["prConcurrentLimit"] == 1
+        assert policy["branchConcurrentLimit"] == 1
         assert policy["minimumReleaseAge"] == "7 days"
         assert policy["schedule"] == ["before 5am on monday"]
-        assert policy["automerge"] is True
+        assert policy["automerge"] is False
         assert policy["automergeType"] == "pr"
+        assert policy["automergeStrategy"] == "squash"
+        assert policy["platformAutomerge"] is False
+        assert policy["ignoreTests"] is False
         assert policy["vulnerabilityAlerts"]["enabled"] is True
-        assert any(
-            rule["groupSlug"] == "weekly-dependency-updates" for rule in policy["packageRules"]
-        )
+        assert policy["vulnerabilityAlerts"]["vulnerabilityFixStrategy"] == "lowest"
 
-    def test_the_central_policy_keeps_tauri_updates_together(self) -> None:
+        weekly = next(
+            rule
+            for rule in policy["packageRules"]
+            if rule.get("groupSlug") == "weekly-dependency-updates"
+        )
+        assert set(weekly["matchUpdateTypes"]) == {
+            "minor",
+            "patch",
+            "pin",
+            "pinDigest",
+            "digest",
+            "lockFileMaintenance",
+            "bump",
+        }
+        assert weekly["automerge"] is True
+        assert weekly["semanticCommitType"] == "fix"
+        assert weekly["semanticCommitScope"] == "deps"
+
+    def test_the_central_policy_holds_every_breaking_risk_update_for_approval(self) -> None:
         policy = json.loads((REPO_ROOT / "renovate-policy.json").read_text(encoding="utf-8"))
 
-        tauri_rule = next(
-            rule for rule in policy["packageRules"] if rule["groupSlug"] == "tauri-platform-updates"
+        manual = next(
+            rule
+            for rule in policy["packageRules"]
+            if rule.get("semanticCommitScope") == "deps-major"
         )
-        assert tauri_rule["matchPackageNames"] == ["tauri", "tauri-build", "@tauri-apps/*"]
+        assert set(manual["matchUpdateTypes"]) == {"major", "replacement", "rollback"}
+        assert manual["dependencyDashboardApproval"] is True
+        assert manual["automerge"] is False
+        assert manual["semanticCommitType"] == "chore"
 
     def test_metrics_recommend_nothing_before_a_cycle_has_run(self) -> None:
         assert "nothing to tune" in AutomationMetrics().recommendation()
