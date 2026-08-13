@@ -278,6 +278,7 @@ class TestRenovate:
         assert policy["automergeStrategy"] == "squash"
         assert policy["platformAutomerge"] is False
         assert policy["ignoreTests"] is False
+        assert policy["lockFileMaintenance"] == {"enabled": False}
         assert policy["vulnerabilityAlerts"]["enabled"] is True
         assert policy["vulnerabilityAlerts"]["vulnerabilityFixStrategy"] == "lowest"
 
@@ -292,7 +293,6 @@ class TestRenovate:
             "pin",
             "pinDigest",
             "digest",
-            "lockFileMaintenance",
             "bump",
         }
         assert weekly["automerge"] is True
