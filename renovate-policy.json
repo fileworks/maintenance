@@ -3,7 +3,6 @@
   "description": "Central dependency-maintenance policy for fileworks repositories.",
   "extends": [
     "config:best-practices",
-    ":enableVulnerabilityAlerts",
     "helpers:pinGitHubActionDigests"
   ],
   "labels": ["dependencies"],
@@ -53,8 +52,6 @@
     }
   ],
   "vulnerabilityAlerts": {
-    "enabled": true,
-    "labels": ["dependencies", "security"],
-    "vulnerabilityFixStrategy": "lowest"
+    "enabled": false
   }
 }
