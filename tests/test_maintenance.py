@@ -279,8 +279,9 @@ class TestRenovate:
         assert policy["platformAutomerge"] is False
         assert policy["ignoreTests"] is False
         assert policy["lockFileMaintenance"] == {"enabled": False}
-        assert policy["vulnerabilityAlerts"]["enabled"] is True
-        assert policy["vulnerabilityAlerts"]["vulnerabilityFixStrategy"] == "lowest"
+        # Renovate's special vulnerability PRs bypass schedules and concurrency
+        # limits, so fixes must use the normal one-branch lifecycle instead.
+        assert policy["vulnerabilityAlerts"] == {"enabled": False}
 
         weekly = next(
             rule
