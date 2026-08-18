@@ -280,9 +280,8 @@ class TestRenovate:
         assert policy["platformAutomerge"] is False
         assert policy["ignoreTests"] is False
         assert policy["lockFileMaintenance"] == {"enabled": False}
-        # Renovate's special vulnerability PRs bypass schedules and concurrency
-        # limits, so fixes must use the normal one-branch lifecycle instead.
-        assert policy["vulnerabilityAlerts"] == {"enabled": False}
+        # The urgent lane is asserted on its own, below.
+        assert policy["vulnerabilityAlerts"]["enabled"] is True
 
         weekly = next(
             rule
@@ -300,6 +299,100 @@ class TestRenovate:
         assert weekly["automerge"] is True
         assert weekly["semanticCommitType"] == "fix"
         assert weekly["semanticCommitScope"] == "deps"
+
+    def test_the_urgent_vulnerability_lane_sets_every_field_explicitly(self) -> None:
+        """DEC-05 / F-02.
+
+        The lane used to be `{"enabled": false}`, justified by the claim that
+        Renovate's vulnerability PRs bypass schedules and concurrency limits
+        anyway. That claim is **unverified against primary documentation**, and
+        a security lane is not a good place to rely on an unverified bypass — so
+        every field is set explicitly instead of inherited.
+
+        This asserts the *resolved policy shape*, which is what this repository
+        owns. It deliberately does **not** assert runtime queue behaviour: these
+        fields are declarative defence-in-depth, and claiming they prevent
+        queueing would be exactly the unverified inference this replaces.
+        """
+        policy = json.loads((REPO_ROOT / "renovate-policy.json").read_text(encoding="utf-8"))
+        lane = policy["vulnerabilityAlerts"]
+
+        assert lane["enabled"] is True
+        # No soak: waiting is the risk this lane exists to remove.
+        assert lane["minimumReleaseAge"] is None
+        # The explicit no-calendar schedule, not an empty list.
+        assert lane["schedule"] == ["at any time"]
+        # Never batched — a security fix has to be reviewable on its own.
+        assert lane["groupName"] is None
+        assert lane["labels"] == ["security"]
+        # 0 is Renovate's "no limit", so an urgent fix is never held behind the
+        # single weekly branch.
+        assert lane["prConcurrentLimit"] == 0
+        assert lane["branchConcurrentLimit"] == 0
+        # Speed of proposal, not of merge: a security update still gets a human.
+        assert lane["automerge"] is False
+        assert lane["dependencyDashboardApproval"] is False
+
+    def test_the_urgent_lane_does_not_inherit_the_weekly_lane_by_omission(self) -> None:
+        """Every field the routine lane sets is answered here, or inherited on purpose."""
+        policy = json.loads((REPO_ROOT / "renovate-policy.json").read_text(encoding="utf-8"))
+        lane = policy["vulnerabilityAlerts"]
+
+        inheritable = (
+            "minimumReleaseAge",
+            "schedule",
+            "prConcurrentLimit",
+            "branchConcurrentLimit",
+        )
+        for field in inheritable:
+            assert field in lane, f"{field} would be inherited from the weekly lane"
+            assert lane[field] != policy[field], (
+                f"{field} matches the routine lane, so the urgent lane is not urgent"
+            )
+
+    def test_every_consumer_extends_the_policy_by_its_exact_spelling(self) -> None:
+        """A preset reference is resolved as a literal string, not as a path.
+
+        `github>fileworks/maintenance:renovate-policy` resolves the *preset*
+        `renovate-policy`. Writing `renovate-policy.json` looks equivalent and
+        is not — so a consumer with the wrong spelling silently inherits
+        nothing, including the urgent lane this change adds. It would look
+        configured and behave as if it were not.
+
+        Skipped rather than failed when the sibling checkout is absent: this is
+        a local multi-repository workspace, and CI checks out one repository.
+        """
+        workspace = REPO_ROOT.parent
+        checked = 0
+        for name in (
+            "media-sorter",
+            "immich-export",
+            "paperless-export",
+            "unpacksort",
+            "homebrew-tap",
+        ):
+            config = workspace / name / "renovate.json"
+            if not config.is_file():
+                continue
+            checked += 1
+            extends = json.loads(config.read_text(encoding="utf-8")).get("extends")
+            assert extends == ["github>fileworks/maintenance:renovate-policy"], (
+                f"{name} does not extend the central policy by its exact spelling: {extends}"
+            )
+        if checked == 0:
+            pytest.skip("no sibling consumer checkouts in this workspace")
+
+    def test_the_routine_lane_keeps_its_seven_day_soak(self) -> None:
+        """Guard rail: adding an urgent lane must not loosen the routine one.
+
+        The plan is explicit that the routine soak is not to be changed to 14
+        days — or to anything else — without a separate measured decision.
+        """
+        policy = json.loads((REPO_ROOT / "renovate-policy.json").read_text(encoding="utf-8"))
+
+        assert policy["minimumReleaseAge"] == "7 days"
+        assert policy["prConcurrentLimit"] == 1
+        assert policy["branchConcurrentLimit"] == 1
 
     def test_the_central_policy_holds_every_breaking_risk_update_for_approval(self) -> None:
         policy = json.loads((REPO_ROOT / "renovate-policy.json").read_text(encoding="utf-8"))
