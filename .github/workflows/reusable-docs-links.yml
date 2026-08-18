@@ -24,7 +24,8 @@ jobs:
   docs-links:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      # actions/checkout v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
       - name: docs-links
         shell: python
@@ -38,12 +39,17 @@ jobs:
           external = os.environ.get("CHECK_EXTERNAL") == "true"
           problems = []
 
+          skip = {
+              ".git", ".venv", "node_modules", "dist", "build", "target",
+              "site-packages", "_internal", "resources", "vendor",
+          }
+
           for markdown in root.rglob("*.md"):
-              if any(part in {".git", "node_modules", ".venv"} for part in markdown.parts):
+              if any(part in skip for part in markdown.parts):
                   continue
               text = markdown.read_text(encoding="utf-8", errors="replace")
               for target in link.findall(text):
-                  if target.startswith("#"):
+                  if target.startswith(("#", "mailto:")):
                       continue
                   if target.startswith(("http://", "https://")):
                       if not external:
