@@ -30,6 +30,7 @@ production settings by accident.
 | `policy.py` | The desired-state manifest: repository classes, required files, audited settings, and the exception schema. Plus the evaluator. |
 | `gates.py` | Stable gate names and the class × gate matrix. Renaming a gate silently unprotects a branch, so the names live here once. |
 | `renovate-policy.json` | The centrally shared Renovate policy used by every managed repository. |
+| `.github/workflows/reusable-*.yml` | Callable, read-only CI building blocks for repository workflows. |
 | `renovate.py` | Dependency-automation metrics and recommendations. |
 | `ledger.py` | The canonical machine-readable release ledger. |
 | `docs.py` | README information architecture, install-command checks, version-drift checks against the ledger, and link checks. |
@@ -96,9 +97,40 @@ Several repositories run one job that covers several gates
 silently unrequiring the others, so they are reported for a decision — split the
 job, or keep requiring its current name — rather than rewritten.
 
-The generated repository-local workflows currently provide docs links,
-dependency audit, and package gates without depending on a not-yet-created
-shared workflow repository.
+Product workflows stay repository-local because their matrices, native
+dependencies, and packaging differ. They can call the read-only reusable
+workflows in this repository with a commit-pinned job-level `uses:` reference.
+Callers retain their own triggers, permissions, and matrices; required-check
+migrations remain explicit. Release and publishing jobs are deliberately never
+shared.
+
+```yaml
+jobs:
+  quality:
+    uses: fileworks/maintenance/.github/workflows/reusable-python-quality.yml@<commit-sha>
+    with:
+      python-version: "3.14"
+      runs-on: ubuntu-latest
+      working-directory: "."
+      sync-mode: all-extras-dev
+      install-poppler: false
+      typecheck-target: "."
+      audit: false
+```
+
+Treat switching an existing required job to a reusable call as a ruleset
+migration and verify the emitted check before requiring it. Where the existing
+check identity must stay exact, keep the thin caller job local or share a
+composite action instead. The reusable workflow accepts only the
+`all-extras-dev` and `all-groups` sync modes; it never executes a caller-provided
+shell fragment. Its Poppler option installs the native package on the same Linux
+runner that executes the tests.
+
+The generated repository-local `docs-links` jobs remain local. Maintenance's own
+quality workflow also remains local because it checks out into a subdirectory,
+and `homebrew-tap` is not a Python consumer. If maintenance must be removed from a
+product's CI dependency chain, follow the
+[reusable-quality un-wire runbook](docs/runbooks/reusable-quality-unwire.md).
 
 ## The approved identity
 
