@@ -11,6 +11,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from maintenance.docs import (
     VERSION_CHECK_IGNORE,
     WORKSPACE_DOCUMENTS,
@@ -133,7 +135,23 @@ class TestTheEscapeHatchIsVisible:
 
 class TestTheRealWorkspace:
     def test_the_documents_beside_this_repository_agree_with_the_ledger(self) -> None:
-        """The check that would have caught P-03/P-04 before it was written."""
+        """The check that would have caught P-03/P-04 before it was written.
+
+        Skipped where the workspace is not checked out around this repository.
+        CI clones `maintenance` on its own, so `WORKSPACE` is the runner's work
+        directory and none of the workspace documents exist there — the check
+        would report every one of them missing and fail for a reason that has
+        nothing to do with the change under test.
+
+        The skip is narrow on purpose: it fires only when *no* workspace
+        document is present, which means "there is no workspace here". A
+        workspace that exists but is missing one document still fails, because
+        that is the drift this check was written to catch.
+        """
+        present = [name for name in WORKSPACE_DOCUMENTS if (WORKSPACE / name).is_file()]
+        if not present:
+            pytest.skip(f"no workspace checked out around {WORKSPACE}")
+
         ledger_path = Path(__file__).resolve().parent.parent / "release-ledger.json"
         issues = check_workspace_versions(WORKSPACE, ReleaseLedger.read(ledger_path))
 
