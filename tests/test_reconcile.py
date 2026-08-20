@@ -10,20 +10,17 @@ from maintenance import reconcile
 from maintenance.drift import PlannedChange
 from maintenance.policy import Repository, SettingControl
 from maintenance.reconcile import (
-    STAGES,
     ApiCall,
     AuthStatus,
-    apply,
     check_auth,
     observe,
     observed_checks,
     plan,
     pull_request_checks,
     redact,
-    rollout,
     ruleset_checks,
-    stage_changes,
 )
+from maintenance.reconcile_apply import STAGES, apply, rollout, stage_changes
 
 
 class FakeClient:
