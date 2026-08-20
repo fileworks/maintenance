@@ -387,3 +387,96 @@ def render_template(
     return template.format(
         name=name, description=description, package=package, status=status.rstrip()
     )
+
+
+#: The workspace documents that quote product versions. They live above every
+#: repository, so no repository's CI reads them — which is exactly why they went
+#: stale (`P-03`/`P-04`): three of them named versions that were two releases old
+#: and one called a released tool unreleased.
+WORKSPACE_DOCUMENTS: tuple[str, ...] = (
+    "CLAUDE.md",
+    "planning/reference/release-status.md",
+    ".mex/ROUTER.md",
+)
+
+
+#: An escape hatch a document can use on a line whose version belongs to
+#: something else — an action ref, a toolchain, an upstream server. Written into
+#: the document rather than guessed at by this module, so the exception is
+#: visible to whoever reads the line and wonders why it is not checked.
+VERSION_CHECK_IGNORE = "version-check: ignore"
+
+
+def _subject_key(text: str) -> str:
+    """`MediaSorter`, `media-sorter` and `Media Sorter` are one subject."""
+    return "".join(character for character in text.lower() if character.isalnum())
+
+
+def check_workspace_versions(workspace: Path, ledger: ReleaseLedger) -> tuple[DocIssue, ...]:
+    """Version claims in the workspace documents, checked against the ledger.
+
+    Deliberately *not* `check_versions`, which a README gets. That one excludes
+    any line mentioning `immich` or `paperless` so an exporter's README quoting
+    the upstream server's version is not mistaken for its own — and in these
+    documents those are precisely the lines that matter. Reusing it here found
+    nothing while `CLAUDE.md` was two releases stale.
+
+    So the association is explicit instead of heuristic: a version is compared
+    against a product only when that product is the single subject named on the
+    line. A line naming several products cannot say which version belongs to
+    which, so it is only faulted for quoting a version that is nobody's current
+    one — which is still enough to catch the stale tap line.
+    """
+    issues: list[DocIssue] = []
+    current = {
+        _subject_key(product.repository): product.released_version for product in ledger.products
+    }
+    known_versions = {version for version in current.values() if version}
+
+    for relative in WORKSPACE_DOCUMENTS:
+        path = workspace / relative
+        if not path.is_file():
+            issues.append(
+                DocIssue(
+                    relative,
+                    "missing_document",
+                    f"{relative} is not present in {workspace}",
+                    "point the check at the workspace root, or update the document list",
+                )
+            )
+            continue
+
+        for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+            if VERSION_CHECK_IGNORE in line:
+                continue
+            quoted = set(_VERSION.findall(line))
+            if not quoted:
+                continue
+            key = _subject_key(line)
+            named = [repository for repository in current if repository in key]
+            if len(named) == 1:
+                expected = current[named[0]]
+                wrong = sorted(version for version in quoted if version != expected)
+                if wrong and expected:
+                    issues.append(
+                        DocIssue(
+                            relative,
+                            "stale_version",
+                            f"line {number} says {named[0]} is "
+                            f"{', '.join(wrong)} but the ledger says {expected}",
+                            f"update the document to {expected}, or correct the ledger",
+                        )
+                    )
+            elif len(named) > 1:
+                orphaned = sorted(version for version in quoted if version not in known_versions)
+                if orphaned:
+                    issues.append(
+                        DocIssue(
+                            relative,
+                            "stale_version",
+                            f"line {number} names {', '.join(sorted(named))} and quotes "
+                            f"{', '.join(orphaned)}, which is no product's current version",
+                            "state one product per line, or update the versions",
+                        )
+                    )
+    return tuple(issues)

@@ -29,7 +29,7 @@ from maintenance.channels import (
     unreadable,
 )
 from maintenance.channels import findings as channel_findings
-from maintenance.docs import check_readme
+from maintenance.docs import DocIssue, check_readme, check_workspace_versions
 from maintenance.drift import DriftReport, PlannedChange, compliance_matrix, plan_settings
 from maintenance.ledger import ReleaseLedger, scaffold
 from maintenance.policy import (
@@ -152,6 +152,15 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Exit non-zero when anything is out of policy.",
     )
+    parser.add_argument(
+        "--workspace",
+        type=Path,
+        help=(
+            "Also check the workspace documents above this repository "
+            "(CLAUDE.md, planning/reference/release-status.md, .mex/ROUTER.md) "
+            "for versions that disagree with the release ledger."
+        ),
+    )
     args = parser.parse_args(argv)
 
     report = build_report(
@@ -160,12 +169,26 @@ def main(argv: list[str] | None = None) -> int:
         readers=unreadable() if args.offline else None,
     )
     print(report.markdown())
+    workspace_issues: tuple[DocIssue, ...] = ()
+    if args.workspace:
+        # These documents live above every repository, so nothing else reads
+        # them and all three had gone stale (`P-03`/`P-04`).
+        workspace_issues = check_workspace_versions(args.workspace, ReleaseLedger.read(LEDGER_PATH))
+        print()
+        print("## Workspace documents")
+        print()
+        if workspace_issues:
+            for issue in workspace_issues:
+                print(f"- **{issue.repository}**: {issue.detail}")
+        else:
+            print("- Every version claim agrees with the release ledger.")
     if args.matrix:
         print()
         print(compliance_matrix(report.policy, repositories(args.root)))
     if args.json:
         report.write(args.json)
-    return 1 if args.strict and not report.clean else 0
+    unclean = not report.clean or bool(workspace_issues)
+    return 1 if args.strict and unclean else 0
 
 
 if __name__ == "__main__":
