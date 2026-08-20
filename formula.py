@@ -1,27 +1,24 @@
-"""Reference generator and regression model for hermetic Homebrew formulas.
+"""The hermetic-formula check. One property, asserted about someone else's output.
 
-The live exporter formulas in ``homebrew-tap`` use the newer cross-platform
-wheel generator maintained in that repository. This module remains the
-independent, sdist-oriented reference used by governance tests and historical
-fixtures; files below ``generated/`` are test inputs, not release truth.
+A hermetic formula installs the same bytes twice: every dependency is a pinned
+`resource` with its own URL and sha256, and nothing is resolved at install time.
 
-This module produces the strict form instead: a `Language::Python::Virtualenv`
-formula whose every dependency is a pinned `resource` block with its own URL and
-sha256, taken from the project's own lockfile. Nothing is resolved at install
-time, so two installs of the same formula install the same bytes.
+This module used to *also* render such formulas from a lockfile, which made two
+generators for one artifact (`A-09`) — this one and `homebrew-tap`'s
+`bump_formula.py`, which is the one whose output Homebrew actually serves. Two
+producers of the same file drift, and only one of them was ever installed, so
+the reference renderer is gone and what remains is the part that was never
+duplicated: the check that says whether a formula is hermetic.
 
-It also writes a test block that does something. A test that only runs
-`--version` proves the binary exists; this one creates a fixture, runs the tool
-on it, and checks the extracted bytes and the manifest that records where they
-came from.
+The formulas it used to emit are kept as static fixtures under
+`tests/fixtures/formulas/`, so the regression they represent outlives the
+generator that happened to produce them.
 """
 
 from __future__ import annotations
 
 import re
-import tomllib
 from dataclasses import dataclass
-from pathlib import Path
 
 #: Packages the formula must not vendor: they come from Homebrew itself, and
 #: vendoring a second copy is how two Pythons end up in one virtualenv. The root
@@ -60,226 +57,6 @@ class Resource:
 
 class LockError(RuntimeError):
     """The lockfile could not be turned into pinned resources."""
-
-
-def read_lock(
-    lock_path: Path,
-    *,
-    root: str | None = None,
-    runtime_only: bool = True,
-) -> list[Resource]:
-    """Read `uv.lock` into pinned resources, sorted for a stable diff.
-
-    When *runtime_only* is set the runtime dependency graph is walked from the
-    root package, because a lockfile contains the development environment too —
-    and a formula that vendored PyInstaller would be installing a build tool onto
-    a user's machine.
-
-    Only sdists are used. A wheel-only dependency cannot be pinned this way and
-    is reported rather than silently dropped, because a formula missing one
-    resource fails at install time on somebody else's machine.
-    """
-    try:
-        data = tomllib.loads(lock_path.read_text(encoding="utf-8"))
-    except (OSError, tomllib.TOMLDecodeError) as exc:
-        raise LockError(f"{lock_path} could not be read: {exc}") from exc
-
-    packages: dict[str, dict[str, object]] = {
-        str(item.get("name", "")): item
-        for item in data.get("package", [])
-        if isinstance(item, dict)
-    }
-    root_name = root or _guess_root(packages, lock_path)
-    wanted = _runtime_closure(packages, root_name) if runtime_only else set(packages)
-    excluded = EXCLUDED | {root_name}
-
-    resources: list[Resource] = []
-    missing: list[str] = []
-    for name, package in packages.items():
-        if name in excluded or name not in wanted:
-            continue
-        sdist = package.get("sdist")
-        if not isinstance(sdist, dict) or not sdist.get("url"):
-            missing.append(name)
-            continue
-        digest = str(sdist.get("hash", ""))
-        if not digest.startswith("sha256:"):
-            missing.append(name)
-            continue
-        resources.append(
-            Resource(
-                name=name,
-                version=str(package.get("version", "")),
-                url=str(sdist["url"]),
-                sha256=digest.removeprefix("sha256:"),
-            )
-        )
-
-    if missing:
-        raise LockError(
-            "these packages have no sdist with a sha256 in the lock and cannot be pinned: "
-            + ", ".join(sorted(missing))
-        )
-    return sorted(resources, key=lambda item: item.name)
-
-
-def _guess_root(packages: dict[str, dict[str, object]], lock_path: Path) -> str:
-    """The project's own package — the one whose source is the directory itself."""
-    for name, package in packages.items():
-        source = package.get("source")
-        if (isinstance(source, dict) and "editable" in source) or "virtual" in str(source):
-            return name
-    fallback = lock_path.parent.name
-    if fallback in packages:
-        return fallback
-    raise LockError("could not identify the root package in the lockfile")
-
-
-def _dependency_names(package: dict[str, object]) -> list[str]:
-    """The `dependencies` table of one lock entry, as plain names."""
-    entries = package.get("dependencies")
-    if not isinstance(entries, list):
-        return []
-    return [str(entry["name"]) for entry in entries if isinstance(entry, dict) and "name" in entry]
-
-
-def _runtime_closure(packages: dict[str, dict[str, object]], root: str) -> set[str]:
-    """Every package reachable from the root's *runtime* dependencies.
-
-    Development groups are deliberately not followed: they are how a build tool
-    ends up vendored into somebody's install.
-    """
-    if root not in packages:
-        raise LockError(f"the lockfile has no package named {root!r}")
-
-    seen: set[str] = set()
-    queue = _dependency_names(packages[root])
-    while queue:
-        name = queue.pop()
-        if name in seen or name not in packages:
-            continue
-        seen.add(name)
-        queue.extend(_dependency_names(packages[name]))
-    return seen
-
-
-DEFAULT_TEST_BLOCK = """  test do
-    # A test that only runs --version proves the binary exists. This one proves
-    # the tool does its job: it builds a small archive, unpacks it, and checks
-    # both the extracted bytes and the manifest that records where they came from.
-    require "fileutils"
-
-    (testpath/"source").mkpath
-    (testpath/"source/hello.txt").write("hello from the formula test\\n")
-    system "tar", "-czf", testpath/"fixture.tar.gz", "-C", testpath/"source", "hello.txt"
-
-    system bin/"{command}", testpath/"fixture.tar.gz", testpath/"out"
-
-    extracted = Dir.glob("#{{testpath}}/out/**/hello.txt").first
-    refute_nil extracted, "unpacksort did not extract the fixture"
-    assert_equal "hello from the formula test\\n", File.read(extracted)
-
-    manifest = Dir.glob("#{{testpath}}/out/**/*manifest*").first
-    refute_nil manifest, "unpacksort did not write a manifest"
-    assert_match "hello.txt", File.read(manifest)
-  end
-"""
-
-
-@dataclass(frozen=True)
-class FormulaSpec:
-    """Everything a formula needs that is not in the lockfile."""
-
-    name: str
-    class_name: str
-    description: str
-    homepage: str
-    version: str
-    #: Filled in at publish time from the real sdist. Left empty deliberately
-    #: until it exists: a placeholder digest that looks real is worse than none.
-    url: str = ""
-    sha256: str = ""
-    license_name: str = "MIT"
-    python: str = "python@3.12"
-    command: str | None = None
-
-    @property
-    def complete(self) -> bool:
-        return bool(self.url and self.sha256)
-
-
-def render(spec: FormulaSpec, resources: list[Resource]) -> str:
-    """Render the strict formula. Refuses to invent a URL or a digest."""
-    command = spec.command or spec.name
-    header = [
-        "# Generated by maintenance/formula.py from the project's uv.lock.",
-        "# Every dependency is pinned; nothing is resolved at install time.",
-        "# Regenerate rather than editing by hand.",
-        f"class {spec.class_name} < Formula",
-        "  include Language::Python::Virtualenv",
-        "",
-        f'  desc "{spec.description}"',
-        f'  homepage "{spec.homepage}"',
-    ]
-    if spec.complete:
-        header += [f'  url "{spec.url}"', f'  sha256 "{spec.sha256}"']
-    else:
-        header += [
-            "  # url and sha256 are written by the release pipeline from the published",
-            "  # sdist. The formula is intentionally not installable until then.",
-            '  url "PENDING"',
-            '  sha256 "PENDING"',
-        ]
-    header += [
-        f'  license "{spec.license_name}"',
-        "",
-        f'  depends_on "{spec.python}"',
-    ]
-
-    # System libraries the pinned resources need. Sorted and de-duplicated so
-    # the generated file diffs cleanly.
-    system_libraries = sorted(
-        {
-            library
-            for resource in resources
-            for library in SYSTEM_DEPENDENCIES.get(resource.name, ())
-        }
-    )
-    header += [f'  uses_from_macos "{library}"' for library in system_libraries]
-    header.append("")
-
-    body = [resource.render() for resource in resources]
-
-    install = [
-        "",
-        "  def install",
-        f'    virtualenv_install_with_resources(using: "{spec.python}")',
-        "  end",
-        "",
-    ]
-
-    return (
-        "\n".join(header)
-        + "\n".join(body)
-        + "\n".join(install)
-        + DEFAULT_TEST_BLOCK.format(command=command)
-        + "end\n"
-    )
-
-
-def generate(
-    spec: FormulaSpec,
-    lock_path: Path,
-    *,
-    root: str | None = None,
-    runtime_only: bool = True,
-) -> str:
-    return render(spec, read_lock(lock_path, root=root, runtime_only=runtime_only))
-
-
-# --------------------------------------------------------------------------- #
-# Checking an existing formula                                                 #
-# --------------------------------------------------------------------------- #
 
 
 @dataclass(frozen=True)

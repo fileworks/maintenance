@@ -22,6 +22,21 @@ from maintenance.paths import REPO_ROOT
 WHEN = datetime(2026, 7, 28, tzinfo=UTC)
 
 
+#: `media-sorter` is a sibling checkout, not a subdirectory of this one. Anchor
+#: on `REPO_ROOT.parent` rather than on the caller's working directory, for the
+#: reason `maintenance/paths.py` gives: a relative path resolves only when
+#: pytest happens to be run from the workspace, so these two tests skipped
+#: themselves on every developer machine while claiming the repository was
+#: absent. It was there; the test was looking one level too deep.
+def _media_sorter_branding() -> tuple[Path | None, Path | None]:
+    workspace = REPO_ROOT.parent
+    script = workspace / "media-sorter" / "scripts" / "generate_branding.py"
+    canonical = workspace / "media-sorter" / "branding" / "app-icon.png"
+    if not script.is_file() or not canonical.is_file():
+        return None, None
+    return script, canonical
+
+
 class TestDecision:
     def test_an_approval_is_recorded_as_data(self, tmp_path: Path) -> None:
         decision = record("literal", "ember", approved_by="someone", when=WHEN)
@@ -245,10 +260,9 @@ class TestBrandingPipeline:
     def test_rerunning_when_the_digest_is_already_correct_succeeds(self, tmp_path: Path) -> None:
         from maintenance.identity.rollout import regenerate_branding
 
-        script = Path("media-sorter/scripts/generate_branding.py")
-        canonical = Path("media-sorter/branding/app-icon.png")
-        if not script.is_file() or not canonical.is_file():
-            pytest.skip("media-sorter is not present in this checkout")
+        script, canonical = _media_sorter_branding()
+        if script is None or canonical is None:
+            pytest.skip("media-sorter is not checked out beside this repository")
         # The generator runs under this interpreter and imports Pillow, so a
         # missing optional dependency is a skip rather than a generator failure.
         pytest.importorskip("PIL")
@@ -258,8 +272,9 @@ class TestBrandingPipeline:
         # into its own parent directory, so pointing this at `media-sorter` edits
         # the working tree as a side effect of asserting a return value. The
         # generator derives its root from `__file__`, so a copy relocates cleanly.
+        media_sorter = REPO_ROOT.parent / "media-sorter"
         for source in (script, canonical):
-            target = tmp_path / source.relative_to("media-sorter")
+            target = tmp_path / source.relative_to(media_sorter)
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_bytes(source.read_bytes())
 
@@ -273,10 +288,9 @@ class TestBrandingPipeline:
         import hashlib
         import re
 
-        script = Path("media-sorter/scripts/generate_branding.py")
-        canonical = Path("media-sorter/branding/app-icon.png")
-        if not script.is_file() or not canonical.is_file():
-            pytest.skip("media-sorter is not present in this checkout")
+        script, canonical = _media_sorter_branding()
+        if script is None or canonical is None:
+            pytest.skip("media-sorter is not checked out beside this repository")
 
         pinned = re.search(r'"([0-9a-f]{64})"', script.read_text(encoding="utf-8"))
         assert pinned is not None

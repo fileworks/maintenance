@@ -9,7 +9,12 @@ this governance repository, and a read-only check of whether they meet it.
 
 This repository is internal governance tooling, not another end-user product.
 It evaluates local files and, only with an explicitly authenticated flag, reads
-remote settings. It does not mutate remotes.
+remote settings.
+
+It *can* mutate remotes — `maintenance/reconcile_apply.py` applies a plan — but
+nothing the CLI loads can reach that module. The separation is a file, not a
+promise, and `tests/test_apply_boundary.py` asserts it by importing the CLI in a
+clean interpreter and checking the writer never arrives.
 
 ## Usage
 
@@ -19,9 +24,11 @@ python -m maintenance.cli --matrix   # the compliance matrix
 python -m maintenance.cli --json out.json --strict
 ```
 
-Nothing here writes to a repository or touches a remote setting. That separation
-is deliberate: a tool that can both audit and fix will eventually be run against
-production settings by accident.
+None of the commands above writes to a repository or touches a remote setting.
+That separation is deliberate: a tool that can both audit and fix will
+eventually be run against production settings by accident. Applying a plan is a
+separate module a caller has to import on purpose (`A-08`); it refuses to write
+in dry-run mode and never writes a change whose prerequisites are not green.
 
 ## What is where
 
