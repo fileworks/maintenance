@@ -98,7 +98,7 @@ class Target:
 
 
 def targets() -> tuple[Target, ...]:
-    """Every location that displays an icon, across the five repositories."""
+    """Every location that displays an icon, across all six repositories."""
     common = [
         Target(repo, product, ".github/icon.svg", note="repository preview and README")
         for repo, product in (
@@ -107,6 +107,7 @@ def targets() -> tuple[Target, ...]:
             ("paperless-export", "paperless-export"),
             ("unpacksort", "unpacksort"),
             ("homebrew-tap", "homebrew-tap"),
+            ("maintenance", "maintenance"),
         )
     ]
     # MediaSorter owns its own branding pipeline: one canonical 1024 px source

@@ -19,7 +19,10 @@ from maintenance.docs import (
     check_workspace_truth,
     check_workspace_versions,
 )
+from maintenance.identity.rollout import targets
+from maintenance.identity.social_previews import PREVIEWS
 from maintenance.ledger import ReleaseLedger
+from maintenance.policy import repositories
 
 WORKSPACE = Path(__file__).resolve().parent.parent.parent
 
@@ -169,6 +172,43 @@ class TestSemanticWorkspaceTruth:
         kinds = {issue.kind for issue in check_workspace_truth(workspace)}
 
         assert kinds == {"stale_active_claim", "exit_code_drift"}
+
+    def test_governance_readme_does_not_claim_unobserved_mend_coverage(self) -> None:
+        readme = (Path(__file__).resolve().parent.parent / "README.md").read_text(encoding="utf-8")
+        prose = " ".join(readme.split())
+
+        assert "is installed for the whole `fileworks` organization" not in prose
+        assert "covers all repositories and is not suspended" not in prose
+        assert "cannot be established from repository-local evidence" in prose
+
+    def test_governance_readme_describes_the_active_vulnerability_lane(self) -> None:
+        readme = (Path(__file__).resolve().parent.parent / "README.md").read_text(encoding="utf-8")
+        prose = " ".join(readme.split()).lower()
+        policy = json.loads(
+            (Path(__file__).resolve().parent.parent / "renovate-policy.json").read_text(
+                encoding="utf-8"
+            )
+        )
+
+        assert policy["vulnerabilityAlerts"]["enabled"] is True
+        assert "vulnerability-alert pr mode is disabled" not in prose
+        assert "urgent vulnerability lane is enabled" in prose
+
+    def test_identity_inventory_names_all_six_repositories_from_active_sources(self) -> None:
+        expected = {
+            "media-sorter",
+            "immich-export",
+            "paperless-export",
+            "unpacksort",
+            "homebrew-tap",
+            "maintenance",
+        }
+
+        assert {repository.name for repository in repositories(WORKSPACE)} == expected
+        assert {preview.repository for preview in PREVIEWS} == expected
+        assert {
+            target.repository for target in targets() if target.relative_path == ".github/icon.svg"
+        } == expected
 
 
 class TestTheRealWorkspace:

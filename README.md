@@ -2,8 +2,9 @@
 
 # Cross-repository maintenance
 
-The executable policy all six `fileworks` Git repositories are held to, including
-this governance repository, and a read-only check of whether they meet it.
+The executable policy that governs all six `fileworks` Git repositories,
+including this governance repository, and a read-only check of whether they meet
+it.
 
 ## Overview
 
@@ -65,25 +66,25 @@ repository has only a minimal `renovate.json` that extends
 `github>fileworks/maintenance:renovate-policy`, so changes to the central policy
 apply everywhere without generating or synchronizing copied configuration.
 
-The Mend Renovate App is installed for the whole `fileworks` organization, so
-`maintenance` and every managed repository inherit it automatically. Its
-installation grants the required repository, pull-request, issue, workflow,
-status/check, and vulnerability-alert access. No repository Actions secret or
-deploy key is needed. GitHub's Dependency Graph and Dependabot alerts remain
-enabled for visibility. Dependabot version updates and automated security-update
-PRs remain disabled so Renovate is the only update author.
+Repository-local configuration is ready for the hosted Mend Renovate App: each
+repository extends the central preset and requires no repository Actions secret
+or deploy key. Whether the App is currently installed, unsuspended, authorized
+for every repository, and actually opening or updating pull requests cannot be
+established from repository-local evidence. An organization owner must inspect
+the App installation and one complete Dependency Dashboard/PR lifecycle before
+coverage is treated as observed. GitHub's Dependency Graph and Dependabot alert
+settings are also live controls and remain unverified until inspected.
 
-Minor, patch, pin, digest, and bump updates are batched into one weekly PR, wait
-until releases are seven days old, and are squash-merged by Renovate only after
-all observed status checks pass. The batch refreshes the affected lockfiles;
-standalone lock-file-maintenance branches are disabled so they cannot create a
-second weekly PR. The batch uses `fix(deps)`, so managed products can publish at
-most one routine dependency patch release per week.
-Major, replacement, and rollback updates remain on the Dependency Dashboard
-until explicitly approved and are never auto-merged. Renovate's special
-vulnerability-alert PR mode is disabled because it bypasses schedules and
-concurrency limits; security fixes follow the same weekly non-major or
-approval-only major path, so they cannot create a stacked PR.
+The central preset requests one weekly PR for minor, patch, pin, digest, and bump
+updates, a seven-day release age, and squash automerge only after observed status
+checks pass. It disables standalone lock-file-maintenance branches and uses
+`fix(deps)` for the routine batch. Major, replacement, and rollback updates
+require explicit Dependency Dashboard approval and are never auto-merged.
+
+The urgent vulnerability lane is enabled and deliberately separate: no release
+soak, an `at any time` schedule, no grouping or concurrency cap, a `security`
+label, and no automerge. These fields state desired Renovate configuration; they
+do not prove hosted queue behavior or that the App currently covers a repository.
 
 ## Gate alignment
 
@@ -150,11 +151,13 @@ read — approval is data, not a memory of a conversation.
 | Orange | ember `#C2410C` (4.85:1 on paper, 3.38:1 on slate) |
 | Approved | 2026-07-28 |
 
-`identity/rollout.py` writes it into all ten display locations: a preview icon in
-each repository's `.github/`, the MediaSorter window icon, and the Tauri bundle
-rasters at 32, 128 and 256 px. Rasters come from `rsvg-convert`; when that is not
-installed the PNG step is **skipped and reported** rather than faked, because a
-missing icon is obvious and a wrong one is not.
+`identity/rollout.py` writes the approved family into all nine canonical display
+locations: one preview icon in each of the six repositories plus MediaSorter's
+window icon, editable app-icon source, and canonical 1024 px raster. MediaSorter
+then owns generation of its Tauri bundle derivatives. Rasters come from
+`rsvg-convert`; when that is not installed the PNG step is **skipped and
+reported** rather than faked, because a missing icon is obvious and a wrong one
+is not.
 
 The audit checks that what is on display is still the family that was approved.
 
@@ -173,15 +176,18 @@ The audit checks that what is on display is still the family that was approved.
 
 ### Renovate verification
 
-The organization-wide Renovate installation covers all repositories and is not
-suspended. Every repository's minimal `renovate.json` extends the shared policy,
-which Renovate resolves from this repository on every run; there is no
-generation or per-repository synchronization step.
+Every repository's minimal `renovate.json` extends the shared policy; that
+repository-local contract is covered by tests. Hosted resolution of the preset,
+App installation scope and suspension state, permissions, dashboard health, and
+the resulting pull-request lifecycle cannot be established from repository-local
+evidence. Verify those live facts with organization-owner access before claiming
+observable coverage; do not infer them from the presence of `renovate.json`.
 
-The hosted App supplies its own credentials. Keep Dependabot automated security
-fixes disabled while leaving the Dependency Graph and Dependabot alerts enabled;
-the alerts remain visible while Renovate's normal updates preserve the one-branch
-lifecycle.
+The hosted App supplies its own credentials when installed. The desired live
+configuration keeps Dependabot automated security fixes disabled while leaving
+the Dependency Graph and Dependabot alerts enabled. Confirm those controls and
+the Renovate lifecycle through authenticated observation; repository files alone
+do not prove either state.
 
 The ledger is regenerated from reviewed, read-only observations with
 `maintenance/.venv/bin/python -m maintenance.refresh_release_ledger` from the

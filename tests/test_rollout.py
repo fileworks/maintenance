@@ -81,6 +81,7 @@ class TestTargets:
             "paperless-export",
             "unpacksort",
             "homebrew-tap",
+            "maintenance",
         }
 
     def test_only_the_desktop_product_needs_rasters(self) -> None:

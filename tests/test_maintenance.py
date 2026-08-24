@@ -374,6 +374,7 @@ class TestRenovate:
             "paperless-export",
             "unpacksort",
             "homebrew-tap",
+            "maintenance",
         ):
             config = workspace / name / "renovate.json"
             if not config.is_file():
@@ -481,7 +482,13 @@ class TestLedger:
         ledger = ReleaseLedger.read(REPO_ROOT / "release-ledger.json")
 
         expected = {
-            ("media-sorter", tag, "tag_without_release")
+            (
+                "media-sorter",
+                tag,
+                "absent_tag"
+                if tag in release_ledger_generator.MEDIA_SORTER_ABSENT_TAGS
+                else "tag_without_release",
+            )
             for tag in release_ledger_generator.MEDIA_SORTER_UNRELEASED
         } | {
             (repository, "v0.0.2", "empty_release")
@@ -509,6 +516,52 @@ class TestLedger:
         monkeypatch.setattr(release_ledger_generator, "LEDGER", stale)
 
         assert release_ledger_generator.main(["--check"]) == 1
+
+    def test_the_generator_never_uses_generated_output_as_evidence(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        committed = (REPO_ROOT / "release-ledger.json").read_text(encoding="utf-8")
+        payload = json.loads(committed)
+        payload["products"][0]["owner"] = "unreviewed-hand-edit"
+        payload["products"][0]["channels"][0]["version"] = "99.99.99"
+        generated = tmp_path / "release-ledger.json"
+        generated.write_text(json.dumps(payload), encoding="utf-8")
+        monkeypatch.setattr(release_ledger_generator, "LEDGER", generated)
+
+        assert release_ledger_generator.rendered() == committed
+
+    def test_absent_tags_and_empty_releases_have_distinct_dispositions(self) -> None:
+        ledger = ReleaseLedger.read(REPO_ROOT / "release-ledger.json")
+        by_identifier = {
+            (item.repository, item.identifier): item for item in ledger.historical_dispositions
+        }
+
+        assert by_identifier[("media-sorter", "v1.0.0")].kind == "tag_without_release"
+        absent = {
+            identifier
+            for (repository, identifier), item in by_identifier.items()
+            if repository == "media-sorter" and item.kind == "absent_tag"
+        }
+        assert absent == {
+            "v1.0.5",
+            "v1.1.0",
+            "v1.1.1",
+            "v1.1.2",
+            "v1.1.3",
+            "v1.1.4",
+            "v1.1.5",
+            "v1.1.6",
+            "v1.1.7",
+            "v1.2.0",
+            "v1.2.1",
+            "v1.2.3",
+            "v1.2.4",
+        }
+        assert {
+            (item.repository, item.identifier)
+            for item in ledger.historical_dispositions
+            if item.kind == "empty_release"
+        } == {("immich-export", "v0.0.2"), ("paperless-export", "v0.0.2")}
 
     def test_historical_dispositions_fail_closed_on_incoherent_object_shape(self) -> None:
         item = HistoricalDisposition(

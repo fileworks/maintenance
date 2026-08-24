@@ -12,7 +12,6 @@ import argparse
 import json
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import cast
 
 from maintenance.ledger import (
     LEDGER_VERSION,
@@ -22,11 +21,101 @@ from maintenance.ledger import (
     ReleaseLedger,
     record,
     record_historical,
+    scaffold,
 )
 
 ROOT = Path(__file__).resolve().parent
 LEDGER = ROOT / "release-ledger.json"
-OBSERVED_AT = datetime(2026, 8, 21, 0, 0, tzinfo=UTC)
+OBSERVED_AT = datetime(2026, 8, 24, 0, 0, tzinfo=UTC)
+
+# Reviewed channel observations are generator input. The generated ledger is
+# deliberately never read as input: otherwise an unreviewed hand edit to its
+# owner, product, or untouched channel fields would silently become canonical.
+CAPTURED_CHANNELS: tuple[tuple[str, Channel, str | None, str, datetime], ...] = (
+    (
+        "media-sorter",
+        "github_release",
+        "1.4.4",
+        "observed on github_release",
+        datetime(2026, 8, 13, 18, 57, 4, 231472, tzinfo=UTC),
+    ),
+    (
+        "immich-export",
+        "github_release",
+        "1.0.1",
+        "observed on github_release",
+        datetime(2026, 8, 13, 18, 7, 39, 913094, tzinfo=UTC),
+    ),
+    (
+        "immich-export",
+        "homebrew",
+        "1.0.1",
+        "observed on homebrew",
+        datetime(2026, 8, 13, 18, 7, 39, 913106, tzinfo=UTC),
+    ),
+    (
+        "immich-export",
+        "pypi",
+        "1.0.1",
+        "observed on pypi",
+        datetime(2026, 8, 13, 18, 7, 39, 913111, tzinfo=UTC),
+    ),
+    (
+        "paperless-export",
+        "github_release",
+        "2.0.1",
+        "observed on github_release",
+        datetime(2026, 8, 13, 18, 7, 39, 913117, tzinfo=UTC),
+    ),
+    (
+        "paperless-export",
+        "homebrew",
+        "2.0.1",
+        "observed on homebrew",
+        datetime(2026, 8, 13, 18, 7, 39, 913122, tzinfo=UTC),
+    ),
+    (
+        "paperless-export",
+        "pypi",
+        "2.0.1",
+        "observed on pypi",
+        datetime(2026, 8, 13, 18, 7, 39, 913125, tzinfo=UTC),
+    ),
+    (
+        "unpacksort",
+        "github_release",
+        "1.1.6",
+        (
+            "GitHub Releases API release 373890356: tag v1.1.6; draft=false; "
+            "prerelease=false; SHA256SUMS, wheel, Windows x64 ZIP, and sdist assets"
+        ),
+        OBSERVED_AT,
+    ),
+    (
+        "unpacksort",
+        "pypi",
+        "1.1.6",
+        "PyPI JSON info.version=1.1.6; wheel and sdist files present",
+        OBSERVED_AT,
+    ),
+    (
+        "unpacksort",
+        "homebrew",
+        "1.1.6",
+        (
+            "HEAD Formula/unpacksort.rb uses unpacksort-1.1.6.tar.gz with sha256 "
+            "eeb355e9665bc8e4807a8d0ee18d5a3a973757092cdff5bb3865ab47e7361c85"
+        ),
+        OBSERVED_AT,
+    ),
+    (
+        "homebrew-tap",
+        "homebrew",
+        "unversioned",
+        "the live tap is unversioned; all three formulas are audited",
+        datetime(2026, 8, 1, 12, 52, 23, 818086, tzinfo=UTC),
+    ),
+)
 
 # Tag SHA, exact tag-triggered Release run, and outcome. These came from the
 # read-only GitHub Actions/tag inventory on 2026-08-21. The successful v1.1.7
@@ -54,22 +143,21 @@ EMPTY_EXPORTER_RELEASES = {
     "paperless-export": ("d9c5730909588777c5f83d8527d68fb53b25a122", 352933990),
 }
 
+MEDIA_SORTER_ABSENT_TAGS = frozenset(MEDIA_SORTER_UNRELEASED) - {"v1.0.0"}
 
-def regenerate(ledger: ReleaseLedger) -> ReleaseLedger:
+
+def regenerate() -> ReleaseLedger:
     """Apply the captured observations and exact historical inventory."""
+    ledger = scaffold()
     ledger.ledger_version = LEDGER_VERSION
-    for channel, detail in {
-        "github_release": "GitHub Releases API tag v1.1.6; draft=false; prerelease=false; 4 assets",
-        "pypi": "PyPI JSON info.version=1.1.6",
-        "homebrew": "HEAD Formula/unpacksort.rb URL contains unpacksort-1.1.6.tar.gz",
-    }.items():
+    for product, channel, version, detail, observed_at in CAPTURED_CHANNELS:
         record(
             ledger,
-            "unpacksort",
-            cast(Channel, channel),
-            version="1.1.6",
+            product,
+            channel,
+            version=version,
             detail=detail,
-            observed_at=OBSERVED_AT,
+            observed_at=observed_at,
         )
     record(
         ledger,
@@ -88,10 +176,16 @@ def regenerate(ledger: ReleaseLedger) -> ReleaseLedger:
     # represented here with evidence or absent from the generated ledger.
     ledger.historical_dispositions = []
     for tag, (commit_sha, run_id, outcome) in MEDIA_SORTER_UNRELEASED.items():
+        absent_tag = tag in MEDIA_SORTER_ABSENT_TAGS
         if outcome == "success":
             reason = (
-                "The Release run concluded success but no release or draft is present; "
-                "deletion/metadata audit history is unavailable, so the cause is unknown."
+                "The Release run concluded success but neither its tag nor a release is "
+                "present; deletion audit history is unavailable, so the cause is unknown."
+            )
+        elif absent_tag:
+            reason = (
+                f"The Release run concluded {outcome}; neither its tag nor a release is "
+                "present. The retained run does not establish when or why the tag disappeared."
             )
         else:
             reason = (
@@ -103,7 +197,7 @@ def regenerate(ledger: ReleaseLedger) -> ReleaseLedger:
             HistoricalDisposition(
                 repository="media-sorter",
                 product="media-sorter",
-                kind="tag_without_release",
+                kind="absent_tag" if absent_tag else "tag_without_release",
                 identifier=tag,
                 commit_sha=commit_sha,
                 release_id=None,
@@ -111,20 +205,34 @@ def regenerate(ledger: ReleaseLedger) -> ReleaseLedger:
                 workflow_run_id=run_id,
                 workflow_outcome=outcome,
                 intended_asset_state=(
-                    "A GitHub Release was intended by the tag-triggered Release workflow; "
-                    "the exact historical asset set is unproven."
+                    "A GitHub Release was intended by the historical Release workflow; the "
+                    "exact historical asset set is unproven."
                 ),
                 observed_at=OBSERVED_AT.isoformat(),
                 evidence=(
-                    f"Tag resolves to {commit_sha}; GitHub Releases API inventory omitted "
-                    f"{tag}; Release run https://github.com/fileworks/media-sorter/actions/runs/"
+                    (
+                        f"Git refs API and Releases API both omitted {tag} on 2026-08-24; "
+                        f"the retained workflow names commit {commit_sha}; "
+                    )
+                    if absent_tag
+                    else (f"Tag resolves to {commit_sha}; GitHub Releases API omitted {tag}; ")
+                )
+                + (
+                    f"Release run https://github.com/fileworks/media-sorter/actions/runs/"
                     f"{run_id} concluded {outcome}."
                 ),
-                disposition="Preserve the immutable tag; make no metadata mutation.",
+                disposition=(
+                    "Preserve the observed absence; do not recreate the tag or release."
+                    if absent_tag
+                    else "Preserve the immutable tag; make no metadata mutation."
+                ),
                 reason=reason,
                 recovery_path=(
-                    "With object-specific authorization, review the tag commit and captured "
-                    "run before considering a metadata-only release; preserve the tag."
+                    "With object-specific authorization, review the historical commit and "
+                    "captured run before considering any tag or release recreation."
+                    if absent_tag
+                    else "With object-specific authorization, review the tag commit and "
+                    "captured run before considering a metadata-only release; preserve the tag."
                 ),
             ),
         )
@@ -169,7 +277,7 @@ def regenerate(ledger: ReleaseLedger) -> ReleaseLedger:
 
 
 def rendered() -> str:
-    ledger = regenerate(ReleaseLedger.read(LEDGER))
+    ledger = regenerate()
     return json.dumps(ledger.to_dict(), indent=2) + "\n"
 
 
