@@ -119,17 +119,27 @@ def build_report(
     # Only with a session: the plan for branch protection is meaningless without
     # the check names a pull request actually reports, and those have to be read.
     planned: list[PlannedChange] = []
+    unreadable_checks: list[str] = []
     if authenticated and observations is not None:
         client = gh_client()
         for repo in repos:
+            checks = pull_request_checks(repo.name, "fileworks", client)
+            if checks is None:
+                unreadable_checks.append(repo.name)
             planned += plan_settings(
                 repo,
                 dict(observations.get(repo.name, {})),
                 policy,
-                checks=pull_request_checks(repo.name, "fileworks", client),
+                checks=checks,
             )
 
-    return DriftReport(policy=policy, documentation=documentation, trees=trees, planned=planned)
+    return DriftReport(
+        policy=policy,
+        documentation=documentation,
+        trees=trees,
+        planned=planned,
+        unreadable_checks=unreadable_checks,
+    )
 
 
 def main(argv: list[str] | None = None) -> int:

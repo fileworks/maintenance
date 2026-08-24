@@ -64,6 +64,9 @@ class DriftReport:
     #: Condition of the checkouts the file controls above were read from. Empty
     #: when it was not inspected.
     trees: list[TreeState] = field(default_factory=list)
+    #: Repositories whose pull-request check names could not be read, so their
+    #: branch protection was left unevaluated instead of planned as empty.
+    unreadable_checks: list[str] = field(default_factory=list)
     generated_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
 
     @property
@@ -134,6 +137,23 @@ class DriftReport:
             ]
             lines += [f"- {state.describe()}" for state in drifted]
             lines.append("")
+        if self.unreadable_checks:
+            lines += [
+                "## Branch protection left unevaluated",
+                "",
+                "The pull-request check names could not be read for these "
+                "repositories, so their required-status-check policy was not "
+                "judged either way. This is not a clean bill of health, and it "
+                "is not drift:",
+                "",
+            ]
+            lines += [f"- {name}" for name in sorted(self.unreadable_checks)]
+            lines += [
+                "",
+                "> Re-run once the API is reachable. A single failed read must "
+                'never be reported as "this repository requires nothing".',
+                "",
+            ]
         # Before the general table: a stale record makes every version claim
         # downstream of it wrong, so it is the first thing to fix, not one row
         # among twenty.
@@ -244,6 +264,13 @@ def plan_settings(
     are known, because GitHub matches required checks by name and there is no
     safe guess: requiring a name nothing reports makes the branch permanently
     unmergeable, and only the next person to open a pull request finds out.
+
+    `None` and `()` are different answers. `()` means the names were read and
+    the repository emits none, which is a real finding. `None` means they could
+    not be read — an unauthenticated run, or a failed request — and branch
+    protection is then left unevaluated rather than planned as empty. Treating
+    the two alike let one transient API failure propose deleting a correct
+    required-context list, and turned a green mandatory gate red.
     """
     green = {
         finding.control_id
@@ -275,12 +302,18 @@ def plan_settings(
                 # arrives sorted, so declaration order would be reported as
                 # drift between two identical sets.
                 desired = sorted(MEDIA_SORTER_REQUIRED_CONTEXTS)
-                missing = sorted(set(MEDIA_SORTER_REQUIRED_CONTEXTS) - set(checks or ()))
+                if checks is None:
+                    continue
+                missing = sorted(set(MEDIA_SORTER_REQUIRED_CONTEXTS) - set(checks))
                 if missing:
                     blocked_extra = (
                         "observed all exact MediaSorter pull-request contexts: "
                         + ", ".join(missing),
                     )
+            elif checks is None:
+                # Not read. Say nothing about protection rather than proposing
+                # to empty it; `unreadable_checks` reports the gap instead.
+                continue
             elif not checks:
                 desired = []
                 blocked_extra = ("observed pull-request check names",)
