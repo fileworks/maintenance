@@ -406,6 +406,85 @@ WORKSPACE_DOCUMENTS: tuple[str, ...] = (
 #: visible to whoever reads the line and wonders why it is not checked.
 VERSION_CHECK_IGNORE = "version-check: ignore"
 
+_STALE_ACTIVE_SPEC_PHRASES: tuple[str, ...] = (
+    "partial-success code `5`",
+    "partial exit code `5`",
+    "four repositories",
+    "eight affected workflow files",
+    "21 inventoried references",
+    "all three mediasorter node setup steps",
+)
+
+
+def check_workspace_truth(workspace: Path) -> tuple[DocIssue, ...]:
+    """Check active cross-repository facts that syntax validation cannot prove."""
+    issues: list[DocIssue] = []
+    specs = workspace / "openspec" / "specs"
+    localized = specs / "localized-generated-content" / "spec.md"
+    if not localized.is_file():
+        issues.append(
+            DocIssue(
+                "openspec",
+                "missing_local_only_contract",
+                f"{localized} is absent",
+                "restore the active local-only media contract",
+            )
+        )
+    else:
+        content = localized.read_text(encoding="utf-8").lower()
+        required = (
+            "media tagging and categorization remain local-only",
+            "must not expose a cloud media provider, credential, or content-upload",
+        )
+        for claim in required:
+            if claim not in content:
+                issues.append(
+                    DocIssue(
+                        "openspec",
+                        "stale_media_privacy_contract",
+                        f"localized-generated-content omits {claim!r}",
+                        "keep active tagging/categorization requirements local-only",
+                    )
+                )
+
+    if specs.is_dir():
+        active = "\n".join(
+            path.read_text(encoding="utf-8", errors="replace").lower()
+            for path in sorted(specs.rglob("*.md"))
+        )
+        for phrase in _STALE_ACTIVE_SPEC_PHRASES:
+            if phrase in active:
+                issues.append(
+                    DocIssue(
+                        "openspec",
+                        "stale_active_claim",
+                        f"active specifications still contain {phrase!r}",
+                        "derive current inventories and use shared PARTIAL = 1",
+                    )
+                )
+
+    for repository, module in (
+        ("immich-export", "immich_export"),
+        ("paperless-export", "paperless_export"),
+    ):
+        path = workspace / repository / "src" / module / "exit_codes.py"
+        if not path.is_file():
+            issues.append(DocIssue(repository, "missing_exit_code_source", f"{path} is absent"))
+            continue
+        source = path.read_text(encoding="utf-8")
+        partial = re.search(r"^\s*PARTIAL\s*=\s*(\d+)\s*$", source, re.MULTILINE)
+        fatal = re.search(r"^\s*FATAL\s*=\s*(\d+)\s*$", source, re.MULTILINE)
+        if partial is None or partial.group(1) != "1" or fatal is None or fatal.group(1) != "4":
+            issues.append(
+                DocIssue(
+                    repository,
+                    "exit_code_drift",
+                    "ExitCode must retain PARTIAL = 1 and FATAL = 4",
+                    "reconcile active specifications to the shared exporter contract",
+                )
+            )
+    return tuple(issues)
+
 
 def _subject_key(text: str) -> str:
     """`MediaSorter`, `media-sorter` and `Media Sorter` are one subject."""
