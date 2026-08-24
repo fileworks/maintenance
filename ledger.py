@@ -27,7 +27,7 @@ Channel = Literal["github_release", "pypi", "homebrew", "winget"]
 #: the table and the type cannot drift apart.
 CHANNELS: tuple[Channel, ...] = ("github_release", "pypi", "homebrew", "winget")
 VerificationState = Literal["verified", "unverified", "not_applicable", "failed"]
-HistoricalKind = Literal["tag_without_release", "empty_release"]
+HistoricalKind = Literal["tag_without_release", "absent_tag", "empty_release"]
 HistoricalWorkflowOutcome = Literal["success", "failure", "cancelled", "unobserved"]
 
 #: How long a verification stays trustworthy before the ledger calls it stale.
@@ -70,7 +70,7 @@ class HistoricalDisposition:
             "recovery_path": self.recovery_path,
         }
         issues = [f"{key} is empty" for key, value in required.items() if not value]
-        if self.kind not in ("tag_without_release", "empty_release"):
+        if self.kind not in ("tag_without_release", "absent_tag", "empty_release"):
             issues.append(f"unsupported kind {self.kind!r}")
         if self.commit_sha is None or re.fullmatch(r"[0-9a-f]{40}", self.commit_sha) is None:
             issues.append("commit_sha is not a full lowercase Git SHA")
@@ -86,11 +86,11 @@ class HistoricalDisposition:
                 issues.append("unobserved workflow has a run ID")
         elif self.workflow_run_id is None or self.workflow_run_id <= 0:
             issues.append("observed workflow has no positive run ID")
-        if self.kind == "tag_without_release":
+        if self.kind in ("tag_without_release", "absent_tag"):
             if self.release_id is not None:
-                issues.append("tag_without_release has a release ID")
+                issues.append(f"{self.kind} has a release ID")
             if self.asset_count is not None:
-                issues.append("tag_without_release has an asset count")
+                issues.append(f"{self.kind} has an asset count")
         if self.kind == "empty_release":
             if self.release_id is None or self.release_id <= 0:
                 issues.append("empty_release has no positive release ID")
