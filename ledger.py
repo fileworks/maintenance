@@ -13,12 +13,13 @@ output and with nothing at all.
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Literal
 
-LEDGER_VERSION = "1"
+LEDGER_VERSION = "2"
 
 Channel = Literal["github_release", "pypi", "homebrew", "winget"]
 
@@ -26,9 +27,76 @@ Channel = Literal["github_release", "pypi", "homebrew", "winget"]
 #: the table and the type cannot drift apart.
 CHANNELS: tuple[Channel, ...] = ("github_release", "pypi", "homebrew", "winget")
 VerificationState = Literal["verified", "unverified", "not_applicable", "failed"]
+HistoricalKind = Literal["tag_without_release", "empty_release"]
+HistoricalWorkflowOutcome = Literal["success", "failure", "cancelled", "unobserved"]
 
 #: How long a verification stays trustworthy before the ledger calls it stale.
 FRESHNESS_DAYS = 30
+
+
+@dataclass(frozen=True)
+class HistoricalDisposition:
+    """Evidence-backed handling for an unusual historical release object."""
+
+    repository: str
+    product: str
+    kind: HistoricalKind
+    identifier: str
+    commit_sha: str | None
+    release_id: int | None
+    asset_count: int | None
+    workflow_run_id: int | None
+    workflow_outcome: HistoricalWorkflowOutcome
+    intended_asset_state: str
+    observed_at: str
+    evidence: str
+    disposition: str
+    reason: str
+    recovery_path: str
+
+    def validate(self) -> tuple[str, ...]:
+        """Return missing facts rather than allowing an unexplained exception."""
+        required = {
+            "repository": self.repository,
+            "product": self.product,
+            "kind": self.kind,
+            "identifier": self.identifier,
+            "workflow_outcome": self.workflow_outcome,
+            "intended_asset_state": self.intended_asset_state,
+            "observed_at": self.observed_at,
+            "evidence": self.evidence,
+            "disposition": self.disposition,
+            "reason": self.reason,
+            "recovery_path": self.recovery_path,
+        }
+        issues = [f"{key} is empty" for key, value in required.items() if not value]
+        if self.kind not in ("tag_without_release", "empty_release"):
+            issues.append(f"unsupported kind {self.kind!r}")
+        if self.commit_sha is None or re.fullmatch(r"[0-9a-f]{40}", self.commit_sha) is None:
+            issues.append("commit_sha is not a full lowercase Git SHA")
+        try:
+            observed = datetime.fromisoformat(self.observed_at)
+        except ValueError:
+            issues.append("observed_at is not ISO-8601")
+        else:
+            if observed.tzinfo is None:
+                issues.append("observed_at has no timezone")
+        if self.workflow_outcome == "unobserved":
+            if self.workflow_run_id is not None:
+                issues.append("unobserved workflow has a run ID")
+        elif self.workflow_run_id is None or self.workflow_run_id <= 0:
+            issues.append("observed workflow has no positive run ID")
+        if self.kind == "tag_without_release":
+            if self.release_id is not None:
+                issues.append("tag_without_release has a release ID")
+            if self.asset_count is not None:
+                issues.append("tag_without_release has an asset count")
+        if self.kind == "empty_release":
+            if self.release_id is None or self.release_id <= 0:
+                issues.append("empty_release has no positive release ID")
+            if self.asset_count != 0:
+                issues.append("empty_release asset_count is not zero")
+        return tuple(issues)
 
 
 @dataclass(frozen=True)
@@ -100,6 +168,7 @@ class ReleaseLedger:
     """The canonical status of every fileworks product."""
 
     products: list[ProductEntry] = field(default_factory=list)
+    historical_dispositions: list[HistoricalDisposition] = field(default_factory=list)
     generated_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
     ledger_version: str = LEDGER_VERSION
 
@@ -138,6 +207,7 @@ class ReleaseLedger:
                 }
                 for product in self.products
             ],
+            "historical_dispositions": [asdict(item) for item in self.historical_dispositions],
         }
 
     def write(self, path: Path) -> Path:
@@ -148,7 +218,34 @@ class ReleaseLedger:
     @classmethod
     def read(cls, path: Path) -> ReleaseLedger:
         payload = json.loads(path.read_text(encoding="utf-8"))
-        ledger = cls(generated_at=payload.get("generated_at", ""), products=[])
+        ledger_version = str(payload.get("ledger_version", "1"))
+        if ledger_version not in {"1", LEDGER_VERSION}:
+            raise ValueError(f"unsupported release ledger version {ledger_version}")
+        ledger = cls(
+            ledger_version=ledger_version,
+            generated_at=payload.get("generated_at", ""),
+            products=[],
+            historical_dispositions=[
+                HistoricalDisposition(
+                    workflow_run_id=item.get("workflow_run_id"),
+                    workflow_outcome=item.get("workflow_outcome", "unobserved"),
+                    intended_asset_state=item.get("intended_asset_state", ""),
+                    reason=item.get("reason", ""),
+                    **{
+                        key: value
+                        for key, value in item.items()
+                        if key
+                        not in {
+                            "workflow_run_id",
+                            "workflow_outcome",
+                            "intended_asset_state",
+                            "reason",
+                        }
+                    },
+                )
+                for item in payload.get("historical_dispositions", [])
+            ],
+        )
         for item in payload.get("products", []):
             ledger.products.append(
                 ProductEntry(
@@ -159,6 +256,23 @@ class ReleaseLedger:
                 )
             )
         return ledger
+
+    @property
+    def historical_issues(self) -> tuple[str, ...]:
+        """All malformed or unexplained historical records."""
+        issues: list[str] = []
+        seen: set[tuple[str, HistoricalKind, str]] = set()
+        for item in self.historical_dispositions:
+            issues.extend(
+                f"{item.repository}/{item.identifier}: {issue}" for issue in item.validate()
+            )
+            key = (item.repository, item.kind, item.identifier)
+            if key in seen:
+                issues.append(
+                    f"{item.repository}/{item.kind}/{item.identifier}: duplicate disposition"
+                )
+            seen.add(key)
+        return tuple(issues)
 
     def markdown(self, *, today: datetime | None = None) -> str:
         """The human-readable view, generated from the same data."""
@@ -294,4 +408,18 @@ def record(
         )
     ]
     entry.channels.sort(key=lambda item: item.channel)
+    return ledger
+
+
+def record_historical(ledger: ReleaseLedger, disposition: HistoricalDisposition) -> ReleaseLedger:
+    """Add or replace one durable historical disposition."""
+    if issues := disposition.validate():
+        raise ValueError("; ".join(issues))
+    ledger.historical_dispositions = [
+        item
+        for item in ledger.historical_dispositions
+        if (item.repository, item.kind, item.identifier)
+        != (disposition.repository, disposition.kind, disposition.identifier)
+    ] + [disposition]
+    ledger.historical_dispositions.sort(key=lambda item: (item.repository, item.identifier))
     return ledger

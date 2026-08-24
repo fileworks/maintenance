@@ -11,6 +11,7 @@ from pathlib import Path
 
 import pytest
 
+from maintenance import refresh_release_ledger as release_ledger_generator
 from maintenance.docs import (
     check_install_commands,
     check_links,
@@ -22,7 +23,7 @@ from maintenance.docs import (
 )
 from maintenance.drift import DriftReport, compliance_matrix, plan_settings
 from maintenance.gates import GATES, matrix, not_applicable, required_checks
-from maintenance.ledger import ReleaseLedger, record, scaffold
+from maintenance.ledger import HistoricalDisposition, ReleaseLedger, record, scaffold
 from maintenance.paths import REPO_ROOT
 from maintenance.policy import (
     FileControl,
@@ -472,6 +473,66 @@ class TestLedger:
         reloaded = ReleaseLedger.read(path)
 
         assert reloaded.product("unpacksort").released_version == "1.0.0"  # type: ignore[union-attr]
+
+    def test_the_committed_ledger_has_exact_consistent_historical_evidence(self) -> None:
+        ledger = ReleaseLedger.read(REPO_ROOT / "release-ledger.json")
+
+        expected = {
+            ("media-sorter", tag, "tag_without_release")
+            for tag in release_ledger_generator.MEDIA_SORTER_UNRELEASED
+        } | {
+            (repository, "v0.0.2", "empty_release")
+            for repository in release_ledger_generator.EMPTY_EXPORTER_RELEASES
+        }
+        assert len(ledger.products) == 5
+        assert ledger.ledger_version == "2"
+        assert ledger.product("unpacksort").released_version == "1.1.6"  # type: ignore[union-attr]
+        assert {
+            (item.repository, item.identifier, item.kind) for item in ledger.historical_dispositions
+        } == expected
+        assert ledger.historical_issues == ()
+        winget = ledger.product("unpacksort").channel("winget")  # type: ignore[union-attr]
+        assert winget is not None and winget.state == "unverified"
+
+    def test_the_release_ledger_generator_rejects_a_stale_version(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        committed = (REPO_ROOT / "release-ledger.json").read_text(encoding="utf-8")
+        stale = tmp_path / "release-ledger.json"
+        stale.write_text(
+            committed.replace('"version": "1.1.6"', '"version": "1.1.5"'),
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(release_ledger_generator, "LEDGER", stale)
+
+        assert release_ledger_generator.main(["--check"]) == 1
+
+    def test_historical_dispositions_fail_closed_on_incoherent_object_shape(self) -> None:
+        item = HistoricalDisposition(
+            repository="media-sorter",
+            product="media-sorter",
+            kind="tag_without_release",
+            identifier="v1.0.0",
+            commit_sha="not-a-sha",
+            release_id=123,
+            asset_count=0,
+            workflow_run_id=456,
+            workflow_outcome="unobserved",
+            intended_asset_state="unknown",
+            observed_at="2026-08-21",
+            evidence="captured",
+            disposition="preserve",
+            reason="unknown",
+            recovery_path="review",
+        )
+
+        assert set(item.validate()) >= {
+            "commit_sha is not a full lowercase Git SHA",
+            "observed_at has no timezone",
+            "unobserved workflow has a run ID",
+            "tag_without_release has a release ID",
+            "tag_without_release has an asset count",
+        }
 
 
 class TestDocumentation:

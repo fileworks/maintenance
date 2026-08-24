@@ -350,6 +350,13 @@ def run(
             note="unverified channels need an authenticated audit",
         )
     )
+    report.sections.append(
+        AuditSection(
+            "Historical release dispositions",
+            list(ledger.historical_issues),
+            note="every unusual retained tag or release needs evidence and a recovery path",
+        )
+    )
 
     report.matrix = compliance_matrix(policy, tuple(repos))
     return report
