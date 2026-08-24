@@ -16,6 +16,7 @@ import pytest
 from maintenance.docs import (
     VERSION_CHECK_IGNORE,
     WORKSPACE_DOCUMENTS,
+    check_workspace_truth,
     check_workspace_versions,
 )
 from maintenance.ledger import ReleaseLedger
@@ -60,6 +61,26 @@ def _workspace(tmp_path: Path, name: str = "workspace", **documents: str) -> Pat
         path = root / relative
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(documents.get(relative.split("/")[-1].replace(".md", ""), ""), "utf-8")
+    return root
+
+
+def _truth_workspace(tmp_path: Path) -> Path:
+    root = tmp_path / "semantic-workspace"
+    localized = root / "openspec/specs/localized-generated-content/spec.md"
+    localized.parent.mkdir(parents=True)
+    localized.write_text(
+        "Media tagging and categorization remain local-only.\n"
+        "The application MUST NOT expose a cloud media provider, credential, or "
+        "content-upload path.\n",
+        encoding="utf-8",
+    )
+    for repository, module in (
+        ("immich-export", "immich_export"),
+        ("paperless-export", "paperless_export"),
+    ):
+        source = root / repository / "src" / module / "exit_codes.py"
+        source.parent.mkdir(parents=True)
+        source.write_text("class ExitCode:\n    PARTIAL = 1\n    FATAL = 4\n", encoding="utf-8")
     return root
 
 
@@ -133,6 +154,23 @@ class TestTheEscapeHatchIsVisible:
         ]
 
 
+class TestSemanticWorkspaceTruth:
+    def test_current_local_only_and_exporter_contracts_pass(self, tmp_path: Path) -> None:
+        assert check_workspace_truth(_truth_workspace(tmp_path)) == ()
+
+    def test_stale_active_counts_and_partial_exit_fail_mechanically(self, tmp_path: Path) -> None:
+        workspace = _truth_workspace(tmp_path)
+        stale = workspace / "openspec/specs/stale/spec.md"
+        stale.parent.mkdir(parents=True)
+        stale.write_text("The eight affected workflow files retain 21 inventoried references.")
+        exporter = workspace / "immich-export/src/immich_export/exit_codes.py"
+        exporter.write_text("class ExitCode:\n    PARTIAL = 5\n    FATAL = 4\n", encoding="utf-8")
+
+        kinds = {issue.kind for issue in check_workspace_truth(workspace)}
+
+        assert kinds == {"stale_active_claim", "exit_code_drift"}
+
+
 class TestTheRealWorkspace:
     def test_the_documents_beside_this_repository_agree_with_the_ledger(self) -> None:
         """The check that would have caught P-03/P-04 before it was written.
@@ -156,3 +194,6 @@ class TestTheRealWorkspace:
         issues = check_workspace_versions(WORKSPACE, ReleaseLedger.read(ledger_path))
 
         assert [f"{issue.repository}: {issue.detail}" for issue in issues] == []
+        assert [
+            f"{issue.repository}: {issue.detail}" for issue in check_workspace_truth(WORKSPACE)
+        ] == []

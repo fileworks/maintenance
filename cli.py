@@ -29,7 +29,7 @@ from maintenance.channels import (
     unreadable,
 )
 from maintenance.channels import findings as channel_findings
-from maintenance.docs import DocIssue, check_readme, check_workspace_versions
+from maintenance.docs import DocIssue, check_readme, check_workspace_truth, check_workspace_versions
 from maintenance.drift import DriftReport, PlannedChange, compliance_matrix, plan_settings
 from maintenance.ledger import ReleaseLedger, scaffold
 from maintenance.policy import (
@@ -173,7 +173,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.workspace:
         # These documents live above every repository, so nothing else reads
         # them and all three had gone stale (`P-03`/`P-04`).
-        workspace_issues = check_workspace_versions(args.workspace, ReleaseLedger.read(LEDGER_PATH))
+        workspace_issues = check_workspace_versions(
+            args.workspace, ReleaseLedger.read(LEDGER_PATH)
+        ) + check_workspace_truth(args.workspace)
         print()
         print("## Workspace documents")
         print()

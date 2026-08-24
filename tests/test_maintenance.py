@@ -11,6 +11,7 @@ from pathlib import Path
 
 import pytest
 
+from maintenance import refresh_release_ledger as release_ledger_generator
 from maintenance.docs import (
     check_install_commands,
     check_links,
@@ -22,7 +23,7 @@ from maintenance.docs import (
 )
 from maintenance.drift import DriftReport, compliance_matrix, plan_settings
 from maintenance.gates import GATES, matrix, not_applicable, required_checks
-from maintenance.ledger import ReleaseLedger, record, scaffold
+from maintenance.ledger import HistoricalDisposition, ReleaseLedger, record, scaffold
 from maintenance.paths import REPO_ROOT
 from maintenance.policy import (
     FileControl,
@@ -44,7 +45,10 @@ from maintenance.workflows import (
     CARGO_AUDIT_VERSION,
     DEPENDENCY_AUDIT_JOB,
     DOCS_LINKS_JOB,
+    MEDIA_SORTER_REQUIRED_CONTEXTS,
     PIP_AUDIT_VERSION,
+    RELEASE_INTEGRITY_JOB,
+    RUST_CLIPPY_COMMAND,
     alignment_matrix,
     map_gates,
     rename_plan,
@@ -473,6 +477,66 @@ class TestLedger:
 
         assert reloaded.product("unpacksort").released_version == "1.0.0"  # type: ignore[union-attr]
 
+    def test_the_committed_ledger_has_exact_consistent_historical_evidence(self) -> None:
+        ledger = ReleaseLedger.read(REPO_ROOT / "release-ledger.json")
+
+        expected = {
+            ("media-sorter", tag, "tag_without_release")
+            for tag in release_ledger_generator.MEDIA_SORTER_UNRELEASED
+        } | {
+            (repository, "v0.0.2", "empty_release")
+            for repository in release_ledger_generator.EMPTY_EXPORTER_RELEASES
+        }
+        assert len(ledger.products) == 5
+        assert ledger.ledger_version == "2"
+        assert ledger.product("unpacksort").released_version == "1.1.6"  # type: ignore[union-attr]
+        assert {
+            (item.repository, item.identifier, item.kind) for item in ledger.historical_dispositions
+        } == expected
+        assert ledger.historical_issues == ()
+        winget = ledger.product("unpacksort").channel("winget")  # type: ignore[union-attr]
+        assert winget is not None and winget.state == "unverified"
+
+    def test_the_release_ledger_generator_rejects_a_stale_version(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        committed = (REPO_ROOT / "release-ledger.json").read_text(encoding="utf-8")
+        stale = tmp_path / "release-ledger.json"
+        stale.write_text(
+            committed.replace('"version": "1.1.6"', '"version": "1.1.5"'),
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(release_ledger_generator, "LEDGER", stale)
+
+        assert release_ledger_generator.main(["--check"]) == 1
+
+    def test_historical_dispositions_fail_closed_on_incoherent_object_shape(self) -> None:
+        item = HistoricalDisposition(
+            repository="media-sorter",
+            product="media-sorter",
+            kind="tag_without_release",
+            identifier="v1.0.0",
+            commit_sha="not-a-sha",
+            release_id=123,
+            asset_count=0,
+            workflow_run_id=456,
+            workflow_outcome="unobserved",
+            intended_asset_state="unknown",
+            observed_at="2026-08-21",
+            evidence="captured",
+            disposition="preserve",
+            reason="unknown",
+            recovery_path="review",
+        )
+
+        assert set(item.validate()) >= {
+            "commit_sha is not a full lowercase Git SHA",
+            "observed_at has no timezone",
+            "unobserved workflow has a run ID",
+            "tag_without_release has a release ID",
+            "tag_without_release has an asset count",
+        }
+
 
 class TestDocumentation:
     def test_a_missing_section_is_reported(self) -> None:
@@ -576,6 +640,16 @@ class TestDriftReport:
         text = DriftReport(policy=policy, planned=planned).markdown()
 
         assert "Nothing above has been applied" in text
+
+    def test_an_unapplied_setting_delta_is_not_clean(self, tmp_path: Path) -> None:
+        repo = _repo(tmp_path)
+        policy = evaluate([repo], controls=[], settings=[])
+        planned = plan_settings(repo, {"delete_branch_on_merge": False}, policy)
+
+        report = DriftReport(policy=policy, planned=planned)
+
+        assert report.clean is False
+        assert "unapplied setting change" in report.summary()
 
     def test_a_change_whose_prerequisite_is_red_is_blocked(self, tmp_path: Path) -> None:
         repo = _repo(tmp_path, repo_class="desktop_application")
@@ -790,6 +864,102 @@ class TestWorkflowMapping:
 
         assert "formula-audit" not in table.split("\n\n")[0]
         assert "does not run" in table
+
+    def test_the_native_warning_gate_policy_is_fail_closed(self) -> None:
+        assert RUST_CLIPPY_COMMAND == "cargo clippy --locked -- -D warnings"
+
+    def test_generated_media_sorter_workflow_policy_is_current(self) -> None:
+        from maintenance import refresh_workflow_policy
+
+        assert refresh_workflow_policy.main(["--check"]) == 0
+
+    def test_generated_release_integrity_is_not_shallow_or_releaseability_blind(self) -> None:
+        assert "fetch-depth: 0" in RELEASE_INTEGRITY_JOB
+        assert "Set up Node 24 for releaseability policy" in RELEASE_INTEGRITY_JOB
+        assert 'node-version: "24"' in RELEASE_INTEGRITY_JOB
+        assert "node --test scripts/releaseability.test.cjs" in RELEASE_INTEGRITY_JOB
+        assert "node scripts/releaseability.cjs" in RELEASE_INTEGRITY_JOB
+        assert "github.event.repository.name == 'media-sorter'" in RELEASE_INTEGRITY_JOB
+        assert "test -f scripts/releaseability.cjs" in RELEASE_INTEGRITY_JOB
+        assert "test -f scripts/render-release-changelog.mjs" in RELEASE_INTEGRITY_JOB
+        assert "npm ci --ignore-scripts" in RELEASE_INTEGRITY_JOB
+        for source in (
+            "frontend/package.json",
+            "frontend/package-lock.json",
+            "frontend/src-tauri/tauri.conf.json",
+            "frontend/src-tauri/Cargo.toml",
+            "frontend/src-tauri/Cargo.lock",
+            "backend/app/_version.py",
+        ):
+            assert source in RELEASE_INTEGRITY_JOB
+
+    def test_the_media_sorter_context_contract_is_exact_and_complete(self) -> None:
+        assert MEDIA_SORTER_REQUIRED_CONTEXTS == (
+            "Archive security — macos-latest / Python 3.11",
+            "Archive security — ubuntu-latest / Python 3.10",
+            "Archive security — ubuntu-latest / Python 3.11",
+            "Archive security — ubuntu-latest / Python 3.14",
+            "Archive security — windows-latest / Python 3.11",
+            "Backend — Windows path / DirectML contracts",
+            "Backend — lint / typecheck / test",
+            "backend-types (core)",
+            "backend-types (shipped-local-ai)",
+            "build",
+            "dependency-audit",
+            "docs-links",
+            "native",
+            "release-integrity",
+            "Backend — macOS transfer and path semantics",
+            "a11y — browser-level WCAG checks",
+            "packaging — the bundle launches and mounts its UI",
+        )
+
+    def test_media_sorter_policy_never_learns_from_incomplete_observed_contexts(
+        self, tmp_path: Path
+    ) -> None:
+        repo = _repo(tmp_path, name="media-sorter", repo_class="desktop_application")
+        policy = evaluate([repo], controls=[], settings=[])
+        control = SettingControl(
+            "default_branch_protection",
+            "protection.main.required_status_checks",
+            expected="<class gates>",
+        )
+        observed = list(MEDIA_SORTER_REQUIRED_CONTEXTS[:-3])
+
+        (planned,) = plan_settings(
+            repo,
+            {"protection.main.required_status_checks": observed},
+            policy,
+            controls=(control,),
+            checks=observed,
+        )
+
+        assert planned.desired == list(MEDIA_SORTER_REQUIRED_CONTEXTS)
+        assert planned.ready is False
+        assert all(name in planned.blocked_by[0] for name in MEDIA_SORTER_REQUIRED_CONTEXTS[-3:])
+
+    def test_missing_emitted_contexts_remain_visible_when_live_policy_is_already_desired(
+        self, tmp_path: Path
+    ) -> None:
+        repo = _repo(tmp_path, name="media-sorter", repo_class="desktop_application")
+        policy = evaluate([repo], controls=[], settings=[])
+        control = SettingControl(
+            "default_branch_protection",
+            "protection.main.required_status_checks",
+            expected="<class gates>",
+        )
+
+        (planned,) = plan_settings(
+            repo,
+            {"protection.main.required_status_checks": list(MEDIA_SORTER_REQUIRED_CONTEXTS)},
+            policy,
+            controls=(control,),
+            checks=MEDIA_SORTER_REQUIRED_CONTEXTS[:-3],
+        )
+
+        assert planned.current == planned.desired == list(MEDIA_SORTER_REQUIRED_CONTEXTS)
+        assert planned.ready is False
+        assert all(name in planned.blocked_by[0] for name in MEDIA_SORTER_REQUIRED_CONTEXTS[-3:])
 
 
 class TestMetricsBaseline:

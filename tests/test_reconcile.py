@@ -168,6 +168,26 @@ class TestPlanning:
         assert "test" in changes[0].desired
         assert changes[0].ready is True
 
+    def test_media_sorter_uses_all_exact_emitted_contexts(self) -> None:
+        from maintenance.workflows import MEDIA_SORTER_REQUIRED_CONTEXTS
+
+        control = SettingControl(
+            "default_branch_protection",
+            "protection.main.required_status_checks",
+            expected="<class gates>",
+        )
+
+        changes = plan(
+            _repo("media-sorter"),
+            {},
+            set(),
+            controls=[control],
+            reported_checks=MEDIA_SORTER_REQUIRED_CONTEXTS,
+        )
+
+        assert changes[0].desired == list(MEDIA_SORTER_REQUIRED_CONTEXTS)
+        assert changes[0].ready is True
+
     def test_a_missing_prerequisite_blocks_the_change(self) -> None:
         control = SettingControl(
             "default_branch_protection",

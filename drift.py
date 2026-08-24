@@ -29,6 +29,7 @@ from maintenance.policy import (
     SettingControl,
     setting_controls,
 )
+from maintenance.workflows import MEDIA_SORTER_REQUIRED_CONTEXTS
 from maintenance.worktree import TreeState, unpublished
 
 
@@ -67,7 +68,7 @@ class DriftReport:
 
     @property
     def clean(self) -> bool:
-        return self.policy.compliant and not self.documentation
+        return self.policy.compliant and not self.documentation and not self.planned
 
     @property
     def blocking(self) -> tuple[Finding, ...]:
@@ -106,6 +107,9 @@ class DriftReport:
             parts.append(f"{len(unverifiable)} unverifiable without authentication")
         if self.documentation:
             parts.append(f"{len(self.documentation)} documentation issue(s)")
+        if self.planned:
+            ready = sum(change.ready for change in self.planned)
+            parts.append(f"{len(self.planned)} unapplied setting change(s), {ready} ready")
         return "; ".join(parts)
 
     def markdown(self) -> str:
@@ -266,13 +270,24 @@ def plan_settings(
             # Those are not check names and never were: the real ones look like
             # `quality (ubuntu-latest, Python 3.12)`. Using them here would have
             # required nine nonexistent checks on every repository at once.
-            if not checks:
+            if repository.name == "media-sorter":
+                desired = list(MEDIA_SORTER_REQUIRED_CONTEXTS)
+                missing = sorted(set(MEDIA_SORTER_REQUIRED_CONTEXTS) - set(checks or ()))
+                if missing:
+                    blocked_extra = (
+                        "observed all exact MediaSorter pull-request contexts: "
+                        + ", ".join(missing),
+                    )
+            elif not checks:
                 desired = []
                 blocked_extra = ("observed pull-request check names",)
             else:
                 desired = list(checks)
         current = current_value
-        if current == desired:
+        # Exact desired settings are not enough when the ordinary PR evidence
+        # proves some required names are not emitted. Keep a blocked no-op row
+        # so drift cannot disappear merely because policy was updated first.
+        if current == desired and not blocked_extra:
             continue
         planned.append(
             PlannedChange(
