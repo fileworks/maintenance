@@ -315,8 +315,9 @@ CARGO_AUDIT_VERSION = "0.22.2"
 RUST_CLIPPY_COMMAND = "cargo clippy --locked -- -D warnings"
 
 # The exact MediaSorter contexts the generated workflow contract emits. The
-# active ruleset currently lacks the final three; reconciliation must report
-# that drift rather than learning desired policy from the incomplete live set.
+# final three were added to the active ruleset on 2026-08-24; they stay last
+# here so the additions remain identifiable. Reconciliation sorts both sides
+# before comparing and must never learn desired policy from the live set.
 MEDIA_SORTER_REQUIRED_CONTEXTS: tuple[str, ...] = (
     "Archive security — macos-latest / Python 3.11",
     "Archive security — ubuntu-latest / Python 3.10",

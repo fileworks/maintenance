@@ -987,7 +987,7 @@ class TestWorkflowMapping:
             checks=observed,
         )
 
-        assert planned.desired == list(MEDIA_SORTER_REQUIRED_CONTEXTS)
+        assert planned.desired == sorted(MEDIA_SORTER_REQUIRED_CONTEXTS)
         assert planned.ready is False
         assert all(name in planned.blocked_by[0] for name in MEDIA_SORTER_REQUIRED_CONTEXTS[-3:])
 
@@ -1004,13 +1004,13 @@ class TestWorkflowMapping:
 
         (planned,) = plan_settings(
             repo,
-            {"protection.main.required_status_checks": list(MEDIA_SORTER_REQUIRED_CONTEXTS)},
+            {"protection.main.required_status_checks": sorted(MEDIA_SORTER_REQUIRED_CONTEXTS)},
             policy,
             controls=(control,),
             checks=MEDIA_SORTER_REQUIRED_CONTEXTS[:-3],
         )
 
-        assert planned.current == planned.desired == list(MEDIA_SORTER_REQUIRED_CONTEXTS)
+        assert planned.current == planned.desired == sorted(MEDIA_SORTER_REQUIRED_CONTEXTS)
         assert planned.ready is False
         assert all(name in planned.blocked_by[0] for name in MEDIA_SORTER_REQUIRED_CONTEXTS[-3:])
 

@@ -185,7 +185,7 @@ class TestPlanning:
             reported_checks=MEDIA_SORTER_REQUIRED_CONTEXTS,
         )
 
-        assert changes[0].desired == list(MEDIA_SORTER_REQUIRED_CONTEXTS)
+        assert changes[0].desired == sorted(MEDIA_SORTER_REQUIRED_CONTEXTS)
         assert changes[0].ready is True
 
     def test_a_missing_prerequisite_blocks_the_change(self) -> None:
