@@ -29,6 +29,7 @@ from typing import Any, Literal
 from maintenance.drift import PlannedChange
 from maintenance.gates import required_checks
 from maintenance.policy import Repository, SettingControl, setting_controls
+from maintenance.workflows import MEDIA_SORTER_REQUIRED_CONTEXTS
 
 Outcome = Literal["applied", "skipped", "blocked", "failed", "unverified"]
 
@@ -430,7 +431,11 @@ def plan(
         desired: Any = control.expected
         blocked_extra: tuple[str, ...] = ()
         if desired == "<class gates>":
-            desired = sorted(required_checks(repository.repo_class))
+            desired = (
+                list(MEDIA_SORTER_REQUIRED_CONTEXTS)
+                if repository.name == "media-sorter"
+                else sorted(required_checks(repository.repo_class))
+            )
             if reported_checks is not None:
                 absent = [name for name in desired if name not in set(reported_checks)]
                 if absent:

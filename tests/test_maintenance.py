@@ -45,7 +45,10 @@ from maintenance.workflows import (
     CARGO_AUDIT_VERSION,
     DEPENDENCY_AUDIT_JOB,
     DOCS_LINKS_JOB,
+    MEDIA_SORTER_REQUIRED_CONTEXTS,
     PIP_AUDIT_VERSION,
+    RELEASE_INTEGRITY_JOB,
+    RUST_CLIPPY_COMMAND,
     alignment_matrix,
     map_gates,
     rename_plan,
@@ -638,6 +641,16 @@ class TestDriftReport:
 
         assert "Nothing above has been applied" in text
 
+    def test_an_unapplied_setting_delta_is_not_clean(self, tmp_path: Path) -> None:
+        repo = _repo(tmp_path)
+        policy = evaluate([repo], controls=[], settings=[])
+        planned = plan_settings(repo, {"delete_branch_on_merge": False}, policy)
+
+        report = DriftReport(policy=policy, planned=planned)
+
+        assert report.clean is False
+        assert "unapplied setting change" in report.summary()
+
     def test_a_change_whose_prerequisite_is_red_is_blocked(self, tmp_path: Path) -> None:
         repo = _repo(tmp_path, repo_class="desktop_application")
         policy = evaluate([repo], controls=[], settings=[])
@@ -851,6 +864,102 @@ class TestWorkflowMapping:
 
         assert "formula-audit" not in table.split("\n\n")[0]
         assert "does not run" in table
+
+    def test_the_native_warning_gate_policy_is_fail_closed(self) -> None:
+        assert RUST_CLIPPY_COMMAND == "cargo clippy --locked -- -D warnings"
+
+    def test_generated_media_sorter_workflow_policy_is_current(self) -> None:
+        from maintenance import refresh_workflow_policy
+
+        assert refresh_workflow_policy.main(["--check"]) == 0
+
+    def test_generated_release_integrity_is_not_shallow_or_releaseability_blind(self) -> None:
+        assert "fetch-depth: 0" in RELEASE_INTEGRITY_JOB
+        assert "Set up Node 24 for releaseability policy" in RELEASE_INTEGRITY_JOB
+        assert 'node-version: "24"' in RELEASE_INTEGRITY_JOB
+        assert "node --test scripts/releaseability.test.cjs" in RELEASE_INTEGRITY_JOB
+        assert "node scripts/releaseability.cjs" in RELEASE_INTEGRITY_JOB
+        assert "github.event.repository.name == 'media-sorter'" in RELEASE_INTEGRITY_JOB
+        assert "test -f scripts/releaseability.cjs" in RELEASE_INTEGRITY_JOB
+        assert "test -f scripts/render-release-changelog.mjs" in RELEASE_INTEGRITY_JOB
+        assert "npm ci --ignore-scripts" in RELEASE_INTEGRITY_JOB
+        for source in (
+            "frontend/package.json",
+            "frontend/package-lock.json",
+            "frontend/src-tauri/tauri.conf.json",
+            "frontend/src-tauri/Cargo.toml",
+            "frontend/src-tauri/Cargo.lock",
+            "backend/app/_version.py",
+        ):
+            assert source in RELEASE_INTEGRITY_JOB
+
+    def test_the_media_sorter_context_contract_is_exact_and_complete(self) -> None:
+        assert MEDIA_SORTER_REQUIRED_CONTEXTS == (
+            "Archive security — macos-latest / Python 3.11",
+            "Archive security — ubuntu-latest / Python 3.10",
+            "Archive security — ubuntu-latest / Python 3.11",
+            "Archive security — ubuntu-latest / Python 3.14",
+            "Archive security — windows-latest / Python 3.11",
+            "Backend — Windows path / DirectML contracts",
+            "Backend — lint / typecheck / test",
+            "backend-types (core)",
+            "backend-types (shipped-local-ai)",
+            "build",
+            "dependency-audit",
+            "docs-links",
+            "native",
+            "release-integrity",
+            "Backend — macOS transfer and path semantics",
+            "a11y — browser-level WCAG checks",
+            "packaging — the bundle launches and mounts its UI",
+        )
+
+    def test_media_sorter_policy_never_learns_from_incomplete_observed_contexts(
+        self, tmp_path: Path
+    ) -> None:
+        repo = _repo(tmp_path, name="media-sorter", repo_class="desktop_application")
+        policy = evaluate([repo], controls=[], settings=[])
+        control = SettingControl(
+            "default_branch_protection",
+            "protection.main.required_status_checks",
+            expected="<class gates>",
+        )
+        observed = list(MEDIA_SORTER_REQUIRED_CONTEXTS[:-3])
+
+        (planned,) = plan_settings(
+            repo,
+            {"protection.main.required_status_checks": observed},
+            policy,
+            controls=(control,),
+            checks=observed,
+        )
+
+        assert planned.desired == list(MEDIA_SORTER_REQUIRED_CONTEXTS)
+        assert planned.ready is False
+        assert all(name in planned.blocked_by[0] for name in MEDIA_SORTER_REQUIRED_CONTEXTS[-3:])
+
+    def test_missing_emitted_contexts_remain_visible_when_live_policy_is_already_desired(
+        self, tmp_path: Path
+    ) -> None:
+        repo = _repo(tmp_path, name="media-sorter", repo_class="desktop_application")
+        policy = evaluate([repo], controls=[], settings=[])
+        control = SettingControl(
+            "default_branch_protection",
+            "protection.main.required_status_checks",
+            expected="<class gates>",
+        )
+
+        (planned,) = plan_settings(
+            repo,
+            {"protection.main.required_status_checks": list(MEDIA_SORTER_REQUIRED_CONTEXTS)},
+            policy,
+            controls=(control,),
+            checks=MEDIA_SORTER_REQUIRED_CONTEXTS[:-3],
+        )
+
+        assert planned.current == planned.desired == list(MEDIA_SORTER_REQUIRED_CONTEXTS)
+        assert planned.ready is False
+        assert all(name in planned.blocked_by[0] for name in MEDIA_SORTER_REQUIRED_CONTEXTS[-3:])
 
 
 class TestMetricsBaseline:
