@@ -271,7 +271,10 @@ def plan_settings(
             # `quality (ubuntu-latest, Python 3.12)`. Using them here would have
             # required nine nonexistent checks on every repository at once.
             if repository.name == "media-sorter":
-                desired = list(MEDIA_SORTER_REQUIRED_CONTEXTS)
+                # Sorted for the same reason as in `reconcile`: `current_value`
+                # arrives sorted, so declaration order would be reported as
+                # drift between two identical sets.
+                desired = sorted(MEDIA_SORTER_REQUIRED_CONTEXTS)
                 missing = sorted(set(MEDIA_SORTER_REQUIRED_CONTEXTS) - set(checks or ()))
                 if missing:
                     blocked_extra = (

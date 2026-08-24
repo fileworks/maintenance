@@ -431,8 +431,12 @@ def plan(
         desired: Any = control.expected
         blocked_extra: tuple[str, ...] = ()
         if desired == "<class gates>":
+            # Both sides are compared as canonically sorted lists. GitHub
+            # returns the required contexts in its own order and `observed`
+            # already sorts them, so an unsorted desired list reported drift
+            # between two identical sets.
             desired = (
-                list(MEDIA_SORTER_REQUIRED_CONTEXTS)
+                sorted(MEDIA_SORTER_REQUIRED_CONTEXTS)
                 if repository.name == "media-sorter"
                 else sorted(required_checks(repository.repo_class))
             )
