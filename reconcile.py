@@ -317,7 +317,7 @@ def observed_checks(repository: str, owner: str, client: Client) -> tuple[str, .
     return tuple(sorted({str(run.get("name", "")) for run in runs if run.get("name")}))
 
 
-def pull_request_checks(repository: str, owner: str, client: Client) -> tuple[str, ...]:
+def pull_request_checks(repository: str, owner: str, client: Client) -> tuple[str, ...] | None:
     """The names a pull request will actually report, which is what to require.
 
     `observed_checks` reads the default branch, and that is the wrong sample in
@@ -331,6 +331,13 @@ def pull_request_checks(repository: str, owner: str, client: Client) -> tuple[st
     workflow, and the names are the job names GitHub produced — already expanded
     across the matrix, which is the only way to get `quality (ubuntu-latest,
     Python 3.12)` right without reimplementing matrix expansion.
+
+    Returns `None` when the names could not be read at all, and a tuple —
+    possibly empty — when they were. Collapsing both into `()` meant one
+    transient API failure was indistinguishable from "this repository emits no
+    pull-request checks", and the caller then planned to *empty* a correct
+    required-context list. That is the same mistake `observe_settings` avoids
+    by leaving an unreachable repository out of its mapping entirely.
     """
     ok, payload = client(
         ApiCall(
@@ -340,7 +347,7 @@ def pull_request_checks(repository: str, owner: str, client: Client) -> tuple[st
         )
     )
     if not ok:
-        return ()
+        return None
 
     latest_per_workflow: dict[Any, dict[str, Any]] = {}
     for run in payload.get("workflow_runs") or []:
@@ -357,8 +364,10 @@ def pull_request_checks(repository: str, owner: str, client: Client) -> tuple[st
         ok, jobs = client(
             ApiCall("GET", f"repos/{owner}/{repository}/actions/runs/{run.get('id')}/jobs")
         )
+        # A partial read is not a smaller answer, it is a wrong one: the names
+        # this run would have contributed would look like names nothing emits.
         if not ok:
-            continue
+            return None
         for job in jobs.get("jobs") or []:
             # A conditionally skipped job appears in the run payload, but it
             # does not report a successful check that branch protection can

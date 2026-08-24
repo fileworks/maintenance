@@ -563,7 +563,29 @@ class TestPullRequestChecks:
     def test_conditionally_skipped_jobs_are_never_made_required(self) -> None:
         names = pull_request_checks("demo", "fileworks", self.Runs())
 
+        assert names is not None
         assert "scheduled-scale" not in names
+
+    def test_a_failed_run_listing_is_unreadable_not_empty(self) -> None:
+        """`()` would read as "this repository emits no checks"."""
+
+        class Refuses:
+            def __call__(self, _call: ApiCall) -> tuple[bool, dict[str, Any]]:
+                return False, {"error": "rate limited"}
+
+        assert pull_request_checks("demo", "fileworks", Refuses()) is None
+
+    def test_a_partial_job_read_is_unreadable_not_a_smaller_answer(self) -> None:
+        """Half the names would look exactly like names nothing emits."""
+        working = self.Runs()
+
+        class HalfDown:
+            def __call__(self, call: ApiCall) -> tuple[bool, dict[str, Any]]:
+                if call.path.endswith("/runs/3/jobs"):
+                    return False, {"error": "boom"}
+                return working(call)
+
+        assert pull_request_checks("demo", "fileworks", HalfDown()) is None
 
     def test_only_the_newest_run_of_each_workflow_is_sampled(self) -> None:
         client = self.Runs()
@@ -574,7 +596,13 @@ class TestPullRequestChecks:
         # for it would mix names from a workflow revision that no longer exists.
         assert not [call for call in client.calls if call.path.endswith("/runs/1/jobs")]
 
-    def test_an_unreachable_repository_yields_nothing_rather_than_a_guess(self) -> None:
+    def test_an_unreachable_repository_is_unreadable_rather_than_a_guess(self) -> None:
+        """`()` was the wrong shape for "unreachable".
+
+        It is a legitimate answer meaning "this repository emits no
+        pull-request checks", and the planner acted on it by proposing to empty
+        the required-context list. `None` is the honest one.
+        """
         assert (
             pull_request_checks(
                 "demo",
@@ -586,7 +614,7 @@ class TestPullRequestChecks:
                     }
                 ),
             )
-            == ()
+            is None
         )
 
 

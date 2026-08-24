@@ -765,11 +765,49 @@ class TestDriftReport:
             prerequisites=("quality_workflow",),
         )
 
-        planned = plan_settings(repo, {}, policy, controls=(control,))
+        planned = plan_settings(repo, {}, policy, controls=(control,), checks=())
 
         assert planned[0].desired == []
         assert planned[0].ready is False
         assert "observed pull-request check names" in planned[0].blocked_by
+
+    def test_unread_check_names_leave_protection_unevaluated(self, tmp_path: Path) -> None:
+        """`None` is "we could not look", and must not propose emptying policy.
+
+        Reading it as "this repository emits nothing" made a transient API
+        failure plan the deletion of a correct required-context list, and
+        turned a green `--strict` gate red without anything having changed.
+        """
+        repo = _repo(tmp_path)
+        policy = evaluate([repo], controls=[], settings=[])
+        control = SettingControl(
+            "default_branch_protection",
+            "protection.main.required_status_checks",
+            expected="<class gates>",
+        )
+
+        planned = plan_settings(
+            repo,
+            {"protection.main.required_status_checks": ["quality (Python 3.12) / gates"]},
+            policy,
+            controls=(control,),
+            checks=None,
+        )
+
+        assert planned == []
+
+    def test_unread_check_names_leave_media_sorter_unevaluated(self, tmp_path: Path) -> None:
+        repo = _repo(tmp_path, name="media-sorter", repo_class="desktop_application")
+        policy = evaluate([repo], controls=[], settings=[])
+        control = SettingControl(
+            "default_branch_protection",
+            "protection.main.required_status_checks",
+            expected="<class gates>",
+        )
+
+        planned = plan_settings(repo, {}, policy, controls=(control,), checks=None)
+
+        assert planned == []
 
     def test_the_matrix_marks_unverifiable_distinctly(self, tmp_path: Path) -> None:
         repo = _repo(tmp_path)
