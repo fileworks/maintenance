@@ -29,7 +29,13 @@ from maintenance.channels import (
     unreadable,
 )
 from maintenance.channels import findings as channel_findings
-from maintenance.docs import DocIssue, check_readme, check_workspace_truth, check_workspace_versions
+from maintenance.docs import (
+    WORKSPACE_DOCUMENTS,
+    DocIssue,
+    check_readme,
+    check_workspace_truth,
+    check_workspace_versions,
+)
 from maintenance.drift import DriftReport, PlannedChange, compliance_matrix, plan_settings
 from maintenance.ledger import ReleaseLedger, scaffold
 from maintenance.policy import (
@@ -165,9 +171,13 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--workspace",
         type=Path,
+        # The document list is read from `docs.WORKSPACE_DOCUMENTS` rather than
+        # restated: a second copy of it in help text is a second copy that goes
+        # stale the first time a document is added, which is what happened when
+        # `REVIEW-GUIDE.md` joined the set.
         help=(
             "Also check the workspace documents above this repository "
-            "(CLAUDE.md, planning/reference/release-status.md, .mex/ROUTER.md) "
+            f"({', '.join(WORKSPACE_DOCUMENTS)}) "
             "for versions that disagree with the release ledger."
         ),
     )
