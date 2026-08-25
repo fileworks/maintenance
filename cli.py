@@ -43,8 +43,10 @@ from maintenance.policy import (
     Finding,
     Repository,
     evaluate,
+    evaluate_actions_allowlist,
     evaluate_python_support,
     load_exceptions,
+    read_actions_allowlist,
     release_controls,
     repositories,
 )
@@ -53,6 +55,7 @@ from maintenance.worktree import inspect as inspect_tree
 
 LEDGER_PATH = Path(__file__).parent / "release-ledger.json"
 EXCEPTIONS_PATH = Path(__file__).parent / "exceptions.json"
+ACTIONS_ALLOWLIST_PATH = Path(__file__).parent / "actions-allowlist.json"
 
 
 def observe_settings(
@@ -114,6 +117,9 @@ def build_report(
     # the run. That is the point — an offline audit degrades, it does not lie.
     policy.findings += verify_channels(repos, ledger, readers or live_readers(gh_client()))
     policy.findings += evaluate_python_support(repos)
+    policy.findings += evaluate_actions_allowlist(
+        repos, read_actions_allowlist(ACTIONS_ALLOWLIST_PATH)
+    )
     documentation = [
         issue
         for repo in repos

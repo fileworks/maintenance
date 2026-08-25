@@ -1,0 +1,14 @@
+{
+  "github_owned_allowed": true,
+  "verified_allowed": false,
+  "patterns_allowed": [
+    "Swatinem/rust-cache@*",
+    "astral-sh/setup-uv@*",
+    "dtolnay/rust-toolchain@*",
+    "pypa/gh-action-pypi-publish@*",
+    "python-semantic-release/python-semantic-release@*",
+    "softprops/action-gh-release@*",
+    "fileworks/maintenance/*",
+    "awalsh128/cache-apt-pkgs-action@*"
+  ]
+}
