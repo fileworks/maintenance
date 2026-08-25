@@ -13,6 +13,7 @@ a compliance tool exists to prevent.
 
 from __future__ import annotations
 
+import fnmatch
 import json
 import re
 import tomllib
@@ -419,6 +420,131 @@ def evaluate_python_support(
                     if support.agrees
                     else "test what you claim and claim what you test — never leave CI "
                     "exercising a version the package disclaims"
+                ),
+            )
+        )
+    return tuple(results)
+
+
+ACTIONS_ALLOWLIST_CONTROL = "actions_allowlist"
+
+#: `owner/` prefixes GitHub itself publishes. They are governed by the
+#: allowlist's `github_owned_allowed` flag rather than by a pattern, exactly as
+#: the organization setting expresses it.
+_GITHUB_OWNED_OWNERS = frozenset({"actions", "github"})
+
+_USES = re.compile(r"^\s*(?:-\s*)?uses:\s*(\S+)", re.MULTILINE)
+_SHA_PINNED = re.compile(r"@[0-9a-f]{40}$")
+
+
+@dataclass(frozen=True)
+class ActionsAllowlist:
+    """The organization's allowed-actions policy, as a checkable artifact.
+
+    The setting itself lives in GitHub organization settings, which no
+    unauthenticated run can read. What *can* be checked from a checkout is the
+    other half of the same promise: that no workflow in the family uses an
+    action the policy does not permit, and that every third-party one is pinned
+    to an immutable revision. A file recording an org setting that nothing
+    compares anything against is a claim, not a control.
+    """
+
+    github_owned_allowed: bool
+    verified_allowed: bool
+    patterns_allowed: tuple[str, ...]
+
+    def permits(self, reference: str) -> bool:
+        owner = reference.split("/", 1)[0]
+        if owner in _GITHUB_OWNED_OWNERS:
+            return self.github_owned_allowed
+        return any(fnmatch.fnmatchcase(reference, pattern) for pattern in self.patterns_allowed)
+
+
+def read_actions_allowlist(path: Path) -> ActionsAllowlist | None:
+    """Load the allowlist, or `None` when it is absent or unreadable."""
+    try:
+        document = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if not isinstance(document, dict):
+        return None
+    patterns = document.get("patterns_allowed") or []
+    return ActionsAllowlist(
+        github_owned_allowed=bool(document.get("github_owned_allowed")),
+        verified_allowed=bool(document.get("verified_allowed")),
+        patterns_allowed=tuple(str(pattern) for pattern in patterns),
+    )
+
+
+def workflow_action_references(repo: Repository) -> tuple[str, ...]:
+    """Every `uses:` reference in a repository's workflows, in file order."""
+    workflows = repo.path / ".github" / "workflows"
+    if not workflows.is_dir():
+        return ()
+    references: list[str] = []
+    for workflow in sorted(workflows.glob("*.yml")) + sorted(workflows.glob("*.yaml")):
+        try:
+            body = workflow.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        references.extend(_USES.findall(body))
+    return tuple(references)
+
+
+def evaluate_actions_allowlist(
+    repos: Sequence[Repository],
+    allowlist: ActionsAllowlist | None,
+) -> tuple[Finding, ...]:
+    """Check every workflow against the allowed-actions policy.
+
+    Two rules, both from the release standard: a third-party action must be
+    pinned to a 40-character commit SHA, because a tag is mutable and a mutable
+    reference into a release workflow is a supply-chain hole; and every action
+    must be one the organization allows. GitHub-owned actions are exempt from
+    the pin rule and governed by `github_owned_allowed`, which is how the
+    organization setting itself distinguishes them.
+    """
+    results: list[Finding] = []
+    for repo in repos:
+        references = workflow_action_references(repo)
+        if not references:
+            continue
+        if allowlist is None:
+            results.append(
+                Finding(
+                    repo.name,
+                    repo.repo_class,
+                    ACTIONS_ALLOWLIST_CONTROL,
+                    "unverifiable",
+                    detail="actions-allowlist.json is absent or unreadable",
+                    remediation="restore the allowlist beside this package",
+                )
+            )
+            continue
+        problems: list[str] = []
+        for reference in sorted(set(references)):
+            owner = reference.split("/", 1)[0]
+            if not allowlist.permits(reference):
+                problems.append(f"{reference} is not on the allowlist")
+                continue
+            if owner not in _GITHUB_OWNED_OWNERS and not _SHA_PINNED.search(reference):
+                problems.append(f"{reference} is third-party and not pinned to a commit SHA")
+        results.append(
+            Finding(
+                repo.name,
+                repo.repo_class,
+                ACTIONS_ALLOWLIST_CONTROL,
+                "compliant" if not problems else "mismatched",
+                detail=(
+                    f"{len(set(references))} action reference(s) allowed and pinned"
+                    if not problems
+                    else "; ".join(problems)
+                ),
+                remediation=(
+                    ""
+                    if not problems
+                    else "pin the action to a commit SHA, or add it to "
+                    "actions-allowlist.json and the organization setting"
                 ),
             )
         )

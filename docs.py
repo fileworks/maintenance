@@ -395,6 +395,7 @@ def render_template(
 #: and one called a released tool unreleased.
 WORKSPACE_DOCUMENTS: tuple[str, ...] = (
     "CLAUDE.md",
+    "REVIEW-GUIDE.md",
     "planning/reference/release-status.md",
     ".mex/ROUTER.md",
 )
