@@ -10,7 +10,6 @@ permit, and that every third-party one is pinned to an immutable revision.
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 import pytest
@@ -165,24 +164,10 @@ class TestTheRealWorkspace:
 
         assert offenders == {}
 
-    def test_the_allowlist_names_no_pattern_nothing_uses(self) -> None:
-        """A pattern kept after its action left is permission nobody reviewed."""
-        workspace = REPO_ROOT.parent
-        repos = [repo for repo in repositories(workspace) if repo.path.is_dir()]
-        references = {reference for repo in repos for reference in workflow_action_references(repo)}
-        if not references:
-            pytest.skip("no sibling repositories are checked out beside this one")
-
-        document = json.loads((REPO_ROOT / "actions-allowlist.json").read_text(encoding="utf-8"))
-        unused = [
-            pattern
-            for pattern in document["patterns_allowed"]
-            if not any(
-                ActionsAllowlist(
-                    github_owned_allowed=False, verified_allowed=False, patterns_allowed=(pattern,)
-                ).permits(reference)
-                for reference in references
-            )
-        ]
-
-        assert unused == []
+    # There is deliberately no "the allowlist names no pattern nothing uses"
+    # test here. That question is only answerable with the whole family checked
+    # out, and the quality job checks out this repository alone — so an "unused"
+    # verdict there would describe the checkout, not the policy. Asserting it
+    # anyway failed CI on six patterns that five sibling repositories use every
+    # run. Skipping it instead would have been worse: a check that can only
+    # skip where it runs is the silence this package exists to break.
